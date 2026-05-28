@@ -4,6 +4,10 @@ import { AnimationProvider, useAnimationRenderer, useCapability, useCapabilityAn
 import { createBlinkAnimation } from "./animation/blink";
 
 const BLINK_KEY = "eyes.blink";
+const HEAD_BOB_KEY = "head.bob";
+const HEAD_TURN_KEY = "head.turn";
+const HEAD_TILT_KEY = "head.tilt";
+const MAX_HEAD_BOB_DEGREES = 18;
 
 export type Mode = "hangout" | "jump" | "debug";
 
@@ -50,8 +54,11 @@ export function Tally(props: TallyProps) {
 function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, chestOutline, debugCapability, debugValue }: TallyProps) {
   const s = (v: number) => v * scale;
 
-  // Eyes blink capability — declared once at the root, rests at 1 (fully open).
-  useCapability(BLINK_KEY, 1);
+  // Capabilities — declared once at the root with their rest values.
+  useCapability(BLINK_KEY, 1);      // 1 = fully open
+  useCapability(HEAD_BOB_KEY, 0.5); // 0.5 = centered, 0 = max left tilt, 1 = max right tilt
+  useCapability(HEAD_TURN_KEY, 0.5); // 0.5 = looking straight, 0 = looking left, 1 = looking right
+  useCapability(HEAD_TILT_KEY, 0.5); // 0.5 = looking straight, 0 = looking down, 1 = looking up
 
   // Debug value is read live via a ref so the animation closure stays stable.
   const debugValueRef = useRef(debugValue ?? 0);
@@ -59,15 +66,28 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     debugValueRef.current = debugValue ?? 0;
   }, [debugValue]);
 
-  // Pick what drives eyes.blink based on mode + which capability debug is targeting.
+  const debugAnimFor = useCallback(
+    (key: string) =>
+      mode === "debug" && debugCapability === key ? () => debugValueRef.current : null,
+    [mode, debugCapability],
+  );
+
+  // eyes.blink — debug overrides; otherwise hangout default of random blinks.
   const blinkAnimation = useMemo(() => {
-    if (mode === "debug") {
-      return debugCapability === BLINK_KEY ? () => debugValueRef.current : null;
-    }
+    if (mode === "debug") return debugAnimFor(BLINK_KEY);
     return createBlinkAnimation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, debugCapability]);
+  }, [mode, debugAnimFor]);
   useCapabilityAnimation(BLINK_KEY, blinkAnimation);
+
+  // head.bob / head.turn / head.tilt — debug-only for now; no mode animations yet.
+  const headBobAnimation = useMemo(() => debugAnimFor(HEAD_BOB_KEY), [debugAnimFor]);
+  useCapabilityAnimation(HEAD_BOB_KEY, headBobAnimation);
+
+  const headTurnAnimation = useMemo(() => debugAnimFor(HEAD_TURN_KEY), [debugAnimFor]);
+  useCapabilityAnimation(HEAD_TURN_KEY, headTurnAnimation);
+
+  const headTiltAnimation = useMemo(() => debugAnimFor(HEAD_TILT_KEY), [debugAnimFor]);
+  useCapabilityAnimation(HEAD_TILT_KEY, headTiltAnimation);
 
   return (
     <div
@@ -236,6 +256,63 @@ function Body({
   );
 }
 
+function useHeadRef(scale: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const render = useCallback((caps: ReadonlyMap<string, number>) => {
+    const el = ref.current;
+    if (!el) return;
+
+    // head.bob — tilts the whole head left/right via rotation.
+    const bob = caps.get(HEAD_BOB_KEY) ?? 0.5;
+    const angle = (bob - 0.5) * 2 * MAX_HEAD_BOB_DEGREES;
+    el.style.transform = `translateX(-50%) rotate(${HEAD_ROTATION + angle}deg)`;
+
+    // head.turn — PLACEHOLDER: linearly scales width with the value (0 → 50%, 1 → 150%).
+    // Replace with real 3D-turn rendering.
+    const turn = caps.get(HEAD_TURN_KEY) ?? 0.5;
+    const turnFactor = (1 - HEAD_TURN_RATIO) * 2 * (.5 - Math.abs(turn - .5)) + HEAD_TURN_RATIO;
+    const turnShift = (HEAD_W + HEAD_OFFSET) * scale * Math.abs(turn - .5) * (1 - HEAD_TURN_RATIO);
+    const baseW = (HEAD_W + HEAD_OFFSET) * scale * turnFactor;
+
+    // Constant insets (in unscaled units) preserve outline thickness regardless of turn.
+    const lightLeftInset = HEAD_OFFSET / 2;
+    const lightSideMargin = HEAD_OFFSET * 9 / 8;
+    const mainLeftInset = HEAD_OFFSET * HEAD_FACE_INSET;
+    const mainSideMargin = HEAD_OFFSET * (2 - HEAD_FACE_INSET);
+
+    // Border-radius shrinks toward the edges of the turn: full at center, HEAD_TURN_RADIUS_RATIO at extremes.
+    const radiusFactor = 1 - Math.abs(turn - .5) * 2 * (1 - HEAD_TURN_RADIUS_RATIO);
+
+    const headBase = el.firstElementChild as HTMLElement | null;
+    if (headBase) {
+      headBase.style.width = `${baseW}px`;
+      headBase.style.left = `${turnShift}px`;
+      headBase.style.borderRadius = `${(HEAD_ROUNDNESS + HEAD_OFFSET / 2) * scale * radiusFactor}px`;
+    }
+
+    const headLight = el.children[1] as HTMLElement | null;
+    if (headLight) {
+      headLight.style.width = `${baseW - lightSideMargin * scale}px`;
+      headLight.style.left = `${turnShift + lightLeftInset * scale}px`;
+      headLight.style.borderRadius = `${HEAD_ROUNDNESS * scale * radiusFactor}px`;
+    }
+
+    const headMain = el.children[2] as HTMLElement | null;
+    if (headMain) {
+      headMain.style.width = `${baseW - mainSideMargin * scale}px`;
+      headMain.style.left = `${turnShift + mainLeftInset * scale}px`;
+      headMain.style.borderRadius = `${(HEAD_ROUNDNESS - HEAD_OFFSET * (1 - HEAD_FACE_INSET)) * scale * radiusFactor}px`;
+    }
+
+    // head.tilt — PLACEHOLDER: linearly scales height with the value (0 → 50%, 1 → 150%).
+    // Replace with real up/down rendering.
+    const tilt = caps.get(HEAD_TILT_KEY) ?? 0.5;
+    el.style.height = `${(HEAD_H + HEAD_OFFSET) * scale * (0.5 + tilt)}px`;
+  }, [scale]);
+  useAnimationRenderer(render);
+  return ref;
+}
+
 const HEAD_W = 120;
 const HEAD_H = 90;
 const HEAD_OFFSET = 12;
@@ -245,6 +322,8 @@ const HEAD_FACE_INSET = 0.7;
 const HEAD_PIVOT_X = (HEAD_W + HEAD_OFFSET) / 2;
 const HEAD_PIVOT_Y = (HEAD_H + HEAD_OFFSET) * 0.85;
 const HEAD_ROTATION = 0;
+const HEAD_TURN_RATIO = .72;
+const HEAD_TURN_RADIUS_RATIO = .75;
 
 function Head({
   scale = 1,
@@ -258,9 +337,11 @@ function Head({
   children: React.ReactNode;
 }) {
   const s = (v: number) => v * scale;
+  const headRef = useHeadRef(scale);
 
   return (
     <div
+      ref={headRef}
       style={{
         position: "absolute",
         zIndex: 5,
@@ -408,21 +489,70 @@ function RightEye({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
 
 const EAR_TOP_RATIO = 0.42;
 const EAR_HEIGHT_RATIO = 0.4;
+const EAR_REST_W = HEAD_OFFSET;
+const EAR_REST_OFFSET = HEAD_OFFSET / 2;  // small clearance so the dark ear doesn't bleed into the head face
+const EAR_RADIUS_RATIO = 0.4;             // borderRadius = current width × this (grows with width)
+const EAR_TURN_INWARD_RATIO = 0.25;       // how far inward the ear slides on a full turn (fraction of HEAD_W)
+const EAR_HIDE_RATE = 3;                  // how quickly the ear disappears (higher = faster)
+const EAR_HIDE_MIN_W = HEAD_OFFSET / 3;   // keep some width when fully hidden — smaller than outline so it stays masked
+
+// Shared shape math — `side` is the "left" or "right" CSS property name.
+function useEarRefShared(scale: number, side: "left" | "right", hideWhenTurnGreater: boolean) {
+  const ref = useRef<HTMLDivElement>(null);
+  const render = useCallback((caps: ReadonlyMap<string, number>) => {
+    const el = ref.current;
+    if (!el) return;
+    const turn = caps.get(HEAD_TURN_KEY) ?? 0.5;
+    const restOffset = -EAR_REST_OFFSET;
+    const restRightEdge = restOffset + EAR_REST_W;
+
+    // Which side is "growing" vs "hiding" depends on the ear.
+    const hidingDistance = hideWhenTurnGreater ? Math.max(0, turn - 0.5) * 2 : Math.max(0, 0.5 - turn) * 2;
+    const growingDistance = hideWhenTurnGreater ? Math.max(0, 0.5 - turn) * 2 : Math.max(0, turn - 0.5) * 2;
+
+    let w: number;
+    let offset: number;
+    if (hidingDistance > 0) {
+      // Shrink toward a minimum width, and slide inward following the head's turn-shift so the
+      // ear stays masked by the (now-shifted) outline instead of hovering outside it.
+      const hide = Math.max(0, 1 - hidingDistance * EAR_HIDE_RATE);
+      w = Math.max(EAR_HIDE_MIN_W, EAR_REST_W * hide);
+      const headTurnShift = (HEAD_W + HEAD_OFFSET) * (hidingDistance / 2) * (1 - HEAD_TURN_RATIO);
+      offset = restRightEdge - w + headTurnShift;
+    } else {
+      // Grow toward a square earphone-cup shape and slide inward from the side.
+      const targetW = HEAD_H * EAR_HEIGHT_RATIO;
+      const targetOffset = HEAD_W * EAR_TURN_INWARD_RATIO;
+      w = EAR_REST_W + (targetW - EAR_REST_W) * growingDistance;
+      offset = restOffset + (targetOffset - restOffset) * growingDistance;
+    }
+
+    el.style.width = `${w * scale}px`;
+    el.style[side] = `${offset * scale}px`;
+    el.style.borderRadius = `${w * EAR_RADIUS_RATIO * scale}px`;
+    // Above the head face so the ear is visible once it slides onto the head.
+    el.style.zIndex = "4";
+  }, [scale, side, hideWhenTurnGreater]);
+  useAnimationRenderer(render);
+  return ref;
+}
 
 function LeftEar({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
   const s = (v: number) => v * scale;
+  const earRef = useEarRefShared(scale, "left", false);
 
   return (
     <div
+      ref={earRef}
       style={{
         position: "absolute",
-        zIndex: 0,
+        zIndex: 4,
         top: s(HEAD_H * EAR_TOP_RATIO),
-        left: s(-HEAD_OFFSET / 3),
-        width: s(HEAD_OFFSET),
+        left: s(-EAR_REST_OFFSET),
+        width: s(EAR_REST_W),
         height: s(HEAD_H * EAR_HEIGHT_RATIO),
         backgroundColor: theme.outline,
-        borderRadius: `${s(HEAD_OFFSET / 3)}px`,
+        borderRadius: `${s(EAR_REST_W * EAR_RADIUS_RATIO)}px`,
       }}
     />
   );
@@ -430,18 +560,20 @@ function LeftEar({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
 
 function RightEar({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
   const s = (v: number) => v * scale;
+  const earRef = useEarRefShared(scale, "right", true);
 
   return (
     <div
+      ref={earRef}
       style={{
         position: "absolute",
-        zIndex: 0,
+        zIndex: 4,
         top: s(HEAD_H * EAR_TOP_RATIO),
-        right: s(-HEAD_OFFSET / 3),
-        width: s(HEAD_OFFSET),
+        right: s(-EAR_REST_OFFSET),
+        width: s(EAR_REST_W),
         height: s(HEAD_H * EAR_HEIGHT_RATIO),
         backgroundColor: theme.outline,
-        borderRadius: `${s(HEAD_OFFSET / 3)}px`,
+        borderRadius: `${s(EAR_REST_W * EAR_RADIUS_RATIO)}px`,
       }}
     />
   );
@@ -471,12 +603,42 @@ const ANTENNA_TOP = -28;
 const ANTENNA_RIGHT = 18;
 const ANTENNA_RADIUS = 3;
 const ANTENNA_ANGLE = -15;
+const ANTENNA_TURN_ANGLE_DELTA = 8;
+
+function useAntennaRef(scale: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const render = useCallback((caps: ReadonlyMap<string, number>) => {
+    const el = ref.current;
+    if (!el) return;
+    const turn = caps.get(HEAD_TURN_KEY) ?? 0.5;
+
+    // Position: stay glued to the visible head's right edge as it turns.
+    const turnFactor = (1 - HEAD_TURN_RATIO) * 2 * (.5 - Math.abs(turn - .5)) + HEAD_TURN_RATIO;
+    const turnShift = (HEAD_W + HEAD_OFFSET) * Math.abs(turn - .5) * (1 - HEAD_TURN_RATIO);
+    const baseW = (HEAD_W + HEAD_OFFSET) * turnFactor;
+    const restAntennaRight = HEAD_OFFSET / 2 + ANTENNA_RIGHT;
+    el.style.right = `${((HEAD_W + HEAD_OFFSET) + restAntennaRight - turnShift - baseW) * scale}px`;
+
+    // Angle: rest lean fades out toward the extremes, replaced by a signed offset
+    // pointing in the head's gaze direction (forward lean).
+    // turn=0.5 → ANTENNA_ANGLE (default left lean).
+    // turn=1   → +ANTENNA_TURN_ANGLE_DELTA → tilts right (with the gaze).
+    // turn=0   → -ANTENNA_TURN_ANGLE_DELTA → tilts left (with the gaze).
+    const distance = Math.abs(turn - 0.5) * 2;
+    const signedOffset = (turn - 0.5) * 2 * ANTENNA_TURN_ANGLE_DELTA;
+    el.style.transform = `rotate(${ANTENNA_ANGLE * (1 - distance) + signedOffset}deg)`;
+  }, [scale]);
+  useAnimationRenderer(render);
+  return ref;
+}
 
 function Antenna({ scale = 1, theme, showAnchor = false }: { scale: number; theme: ColorTheme; showAnchor?: boolean }) {
   const s = (v: number) => v * scale;
+  const antennaRef = useAntennaRef(scale);
 
   return (
     <div
+      ref={antennaRef}
       style={{
         position: "absolute",
         zIndex: showAnchor ? 999 : 0,

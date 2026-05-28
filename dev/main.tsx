@@ -61,7 +61,7 @@ const themes: Record<string, ColorTheme> = {
 
 const scales = [.36, 0.5, 1, 1.5, 2, 2.5, 3, 3.5];
 const modes: Mode[] = ["hangout", "debug"];
-const debugCapabilities = ["eyes.blink"];
+const debugCapabilities = ["eyes.blink", "head.bob", "head.turn", "head.tilt"];
 
 function App() {
   const [themeName, setThemeName] = useState("default");
