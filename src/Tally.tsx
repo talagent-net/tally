@@ -4,17 +4,36 @@ import { AnimationProvider, useAnimationRenderer, useCapability, useCapabilityAn
 import { createBlinkAnimation } from "./animation/blink";
 import { createLookAroundAnimation } from "./animation/lookAround";
 import { createAntennaWiggleAnimation } from "./animation/antennaWiggle";
-import { createReaction } from "./animation/reactions";
-import type { ReactionName } from "./animation/reactions";
+import { createAction } from "./animation/actions";
+import type { ActionSpec } from "./animation/actions";
+import type { AnimationFn } from "./animation/engine";
 
 const BLINK_KEY = "eyes.blink";
 const HEAD_BOB_KEY = "head.bob";
 const HEAD_TURN_KEY = "head.turn";
 const HEAD_TILT_KEY = "head.tilt";
 const ARMS_LEFT_RAISE_KEY = "arms.left.raise";
+const ARMS_LEFT_WAVE_KEY = "arms.left.wave";
 const ANTENNA_WIGGLE_KEY = "antenna.wiggle";
 const BODY_TURN_KEY = "body.turn";
+// Locomotion capabilities. body.x is the figure's net horizontal position in *scaled pixels* —
+// it is persistent (does NOT reset to rest after an action), so the figure stays where it walked
+// to. body.bounce (vertical step bounce) and body.lean (lean into the travel direction) are normal
+// transient gait capabilities that reset to rest when a walk ends.
+const BODY_X_KEY = "body.x";
+const BODY_BOUNCE_KEY = "body.bounce";
+const BODY_LEAN_KEY = "body.lean";
+const LEGS_SWING_KEY = "legs.swing";
+const ARMS_SWING_KEY = "arms.swing";
 const MAX_HEAD_BOB_DEGREES = 18;
+
+// Render-side magnitudes for the gait capabilities (normalized value → px / degrees), mirroring
+// how head.tilt etc. keep their pixel/degree tuning at the read site.
+const BODY_BOUNCE_PX = 7;      // peak vertical lift at body.bounce = 1 (unscaled px)
+const BODY_LEAN_DEG = 7;    // peak lean at body.lean extremes (degrees), signed around 0.5
+const LEG_SWING_DEG = 40;   // peak leg rotation at legs.swing extremes (degrees), anti-phase across legs
+const ARM_SWING_DEG = 22;   // peak arm rotation at arms.swing extremes (degrees), anti-phase across arms & counter to legs
+const HAND_WAVE_DEG = 25;   // peak forearm rotation at arms.left.wave extremes (degrees) — the disagree hand-wave
 
 // head.tilt, head.turn, and body.turn all squash the head's geometry — head.tilt on the
 // vertical axis, head.turn and body.turn (via the effective-head-turn sum) on the horizontal.
@@ -56,14 +75,18 @@ export interface TallyProps {
   showAnchor?: boolean;
   chestImage?: string;
   chestOutline?: string;
-  // When mode === "debug", these drive a single capability directly,
-  // bypassing the regular mode animations.
-  debugCapability?: string;
-  debugValue?: number;
-  // One-shot reactions override the mode for their duration. To re-fire the same reaction,
-  // set this prop to null then back to the same value — the component tracks last-fired to
-  // dedupe and would otherwise ignore a no-change render.
-  reaction?: ReactionName | null;
+  // Debug overrides: a map of capability key → held value (0..1). Each listed capability is
+  // pinned to its value regardless of mode, bypassing the regular mode animations. Multiple
+  // independent capabilities can be held simultaneously.
+  debugOverrides?: Record<string, number>;
+  // One-shot actions override the mode for their duration. Pass a spec object, e.g.
+  // { name: "agree" } or { name: "walk", direction: "right", distance: 2 }. The component
+  // dedupes against the last-fired spec (by value), so to re-fire an identical action set this
+  // to null then back. `walk` distance is in body-widths.
+  action?: ActionSpec | null;
+  // Fired when a walk action finishes, reporting the net horizontal move in scaled pixels
+  // (signed: positive = rightward). The figure retains this displacement.
+  onWalkComplete?: (deltaPx: number) => void;
 }
 
 const BASE = {
@@ -79,7 +102,7 @@ export function Tally(props: TallyProps) {
   );
 }
 
-function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, chestOutline, debugCapability, debugValue, reaction }: TallyProps) {
+function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, chestOutline, debugOverrides, action, onWalkComplete }: TallyProps) {
   const s = (v: number) => v * scale;
 
   // Capabilities — declared once at the root with their rest values.
@@ -88,119 +111,273 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   useCapability(HEAD_TURN_KEY, 0.5); // 0.5 = looking straight, 0 = looking left, 1 = looking right
   useCapability(HEAD_TILT_KEY, 0.5); // 0.5 = looking straight, 0 = looking down, 1 = looking up
   useCapability(ARMS_LEFT_RAISE_KEY, 0); // 0 = arm at rest pose; 1 = raised to a "stop" gesture
+  useCapability(ARMS_LEFT_WAVE_KEY, 0.5);// 0.5 = no wave; 0/1 = forearm rotated left/right at the elbow
   useCapability(ANTENNA_WIGGLE_KEY, 0.5); // 0.5 = no wiggle; 0/1 = max wiggle in either direction
   useCapability(BODY_TURN_KEY, 0.5); // 0.5 = facing forward; 0/1 = max body turn either way (head follows by default)
+  useCapability(BODY_X_KEY, 0);      // net horizontal position in scaled px — persistent across actions
+  useCapability(BODY_BOUNCE_KEY, 0);    // 0 = grounded; 1 = peak of a walk step bounce
+  useCapability(BODY_LEAN_KEY, 0.5); // 0.5 = upright; 0/1 = lean left/right into travel
+  useCapability(LEGS_SWING_KEY, 0.5);// 0.5 = neutral stance; 0/1 = legs at opposite ends of a step (anti-phase)
+  useCapability(ARMS_SWING_KEY, 0.5);// 0.5 = arms at rest; 0/1 = arms at opposite ends of a swing (anti-phase, counter to legs)
 
   // head.tilt vs head.turn — the engine will smoothly unwind one when the other gets engaged.
   useConflict(HEAD_AXIS_CONFLICT);
 
-  // Debug value is read live via a ref so the animation closure stays stable.
-  const debugValueRef = useRef(debugValue ?? 0);
-  useEffect(() => {
-    debugValueRef.current = debugValue ?? 0;
-  }, [debugValue]);
+  // Debug overrides — a map of capability key → held value. Each listed capability is driven by
+  // its value (read live via a ref so closures stay stable), independently of the others, so
+  // several non-conflicting capabilities can be pinned at once (e.g. hold body.turn sideways
+  // while scrubbing legs.swing). Order in the useMemos below: action > debug override > mode
+  // default. A key absent from the map makes debugAnimFor return null, so its mode default applies.
+  // Written during render (not in an effect) on purpose: debugAnimFor recomputes when the key
+  // SET changes and reads this ref to decide whether to install a capability's animation. If the
+  // ref lagged a render behind (effect-updated), a freshly-checked capability wouldn't install
+  // until the NEXT key-set change — the "slider works one capability late" bug. A latest-value
+  // ref write in render is idempotent and safe here.
+  const debugOverridesRef = useRef<Record<string, number>>(debugOverrides ?? {});
+  debugOverridesRef.current = debugOverrides ?? {};
 
-  // Debug override — when debugCapability matches a key, that capability is driven by the
-  // live slider value regardless of mode. Order in the useMemos below: reaction > debug
-  // override > mode default. Selecting an unmatched key (e.g. "(off)" from the dev page) makes
-  // this return null, so the mode default applies normally.
+  // Identity changes only when the SET of overridden keys changes, so capability animations are
+  // installed/removed as keys are toggled — but live value edits (same keys) don't churn effects.
+  const debugKeysSig = debugOverrides ? Object.keys(debugOverrides).sort().join(",") : "";
   const debugAnimFor = useCallback(
-    (key: string) => (debugCapability === key ? () => debugValueRef.current : null),
-    [debugCapability],
+    (key: string): AnimationFn | null =>
+      debugOverridesRef.current[key] !== undefined ? () => debugOverridesRef.current[key] : null,
+    [debugKeysSig],
   );
 
-  // Reaction lifecycle: the prop drives a transient active reaction that overrides mode-level
-  // animations for its duration. lastReactionRef dedupes against unchanged renders — to re-fire
-  // the same reaction, the consumer must change the prop value (typically null then back).
-  const lastReactionRef = useRef<ReactionName | null>(null);
-  const [activeReactionName, setActiveReactionName] = useState<ReactionName | null>(null);
+  // Persistent horizontal position. committedXRef is the net distance (scaled px) the figure has
+  // walked so far — it survives every action. walkStateRef holds the in-progress stride during a
+  // walk; the body.x capability value is committed + current-stride. On walk completion the stride
+  // is folded into committedXRef and walkStateRef is cleared, so body.x reads the same value the
+  // frame before and after the commit — no snap-back when the action's gait animations release.
+  const committedXRef = useRef(0);
+  const walkStateRef = useRef<{
+    startElapsed: number | null;
+    delta: number;
+    rampStartMs: number;
+    rampEndMs: number;
+    accelMs: number;
+  } | null>(null);
+  // Stable closure so the engine installs it exactly once and never unwinds it (unlike the gait
+  // capabilities, body.x must not reset to rest).
+  //
+  // The slide follows a TRAPEZOIDAL velocity profile across the stride window [rampStartMs,
+  // rampEndMs]: velocity ramps 0→V over accelMs, holds V (constant-speed cruise), then ramps V→0
+  // over accelMs. So the acceleration phase is a FIXED duration regardless of distance — a longer
+  // walk just cruises longer. If the window can't fit accel + decel, both are scaled down
+  // proportionally (the profile degrades to a triangle = pure ease-in-out). Position is the
+  // integral of that velocity, normalised so the cruise speed works out to cover `delta` exactly.
+  const bodyXAnimRef = useRef<AnimationFn>((elapsed) => {
+    const w = walkStateRef.current;
+    if (!w) return committedXRef.current;
+    if (w.startElapsed === null) w.startElapsed = elapsed;
+    const d = w.rampEndMs - w.rampStartMs; // stride duration
+    const tt = elapsed - w.startElapsed - w.rampStartMs; // time into the stride
+    let stride: number;
+    if (tt <= 0) {
+      stride = 0;
+    } else if (tt >= d) {
+      stride = w.delta;
+    } else {
+      let ta = w.accelMs; // ease-in duration
+      let td = w.accelMs; // ease-out duration (symmetric)
+      if (ta + td > d) {
+        const f = d / (ta + td);
+        ta *= f;
+        td *= f;
+      }
+      const cruise = d - ta - td;
+      // Distance (in "unit cruise speed" terms) under the velocity profile = denom; the final
+      // position is delta, so scale position-units by delta/denom. Branches are safe for ta or td
+      // = 0 (the corresponding ramp region is empty, so its divisor is never reached).
+      const denom = ta / 2 + cruise + td / 2;
+      let s: number;
+      if (tt < ta) {
+        s = (tt * tt) / (2 * ta); // accelerate: ½·(t/ta)·t
+      } else if (tt < ta + cruise) {
+        s = ta / 2 + (tt - ta); // cruise at unit speed
+      } else {
+        const tau = tt - (ta + cruise); // into the decel ramp
+        s = ta / 2 + cruise + (tau - (tau * tau) / (2 * td)); // decelerate
+      }
+      stride = w.delta * (s / denom);
+    }
+    return committedXRef.current + stride;
+  });
+  useCapabilityAnimation(BODY_X_KEY, bodyXAnimRef.current);
+  const locomotionRef = useLocomotionRef();
+
+  // Action lifecycle. An active action plays to completion and is NOT interruptible. A trigger
+  // that arrives while an action is in flight is held in a single queue slot (depth 1) and plays
+  // when the current one finishes; a newer trigger replaces whatever is queued (latest-wins).
+  // lastActionKeyRef dedupes the prop by value (specs are objects) — to fire an identical action,
+  // the consumer sets the prop to null then back. Setting the prop to null is a no-op for
+  // playback: it neither cancels the running action nor clears the queue, it just resets the
+  // trigger so the same spec can re-fire.
+  const lastActionKeyRef = useRef<string | null>(null);
+  // The active action is wrapped with a per-activation `id` so EVERY activation is a fresh object,
+  // even when the same spec reference is replayed back-to-back (e.g. queueing the same gesture that
+  // just finished — the dev buttons reuse one spec object). Without this, setActive(sameSpecRef)
+  // would be a no-op state update: activeAction wouldn't recompute, the completion effect wouldn't
+  // re-run, no new timer would be scheduled, and the lifecycle would freeze stuck-busy forever.
+  const activationCounterRef = useRef(0);
+  const [active, setActive] = useState<{ spec: ActionSpec; id: number } | null>(null);
+  const activate = useCallback((spec: ActionSpec | null) => {
+    setActive(spec ? { spec, id: ++activationCounterRef.current } : null);
+  }, []);
+  // Latest-value ref so the prop effect can read whether an action is in flight without a stale
+  // closure (written during render — see debugOverridesRef).
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const queuedActionSpecRef = useRef<ActionSpec | null>(null);
   useEffect(() => {
-    if ((reaction ?? null) === lastReactionRef.current) return;
-    lastReactionRef.current = reaction ?? null;
-    setActiveReactionName(reaction ?? null);
-  }, [reaction]);
-  const activeReaction = useMemo(
-    () => (activeReactionName ? createReaction(activeReactionName) : null),
-    [activeReactionName],
+    const key = action ? JSON.stringify(action) : null;
+    if (key === lastActionKeyRef.current) return;
+    lastActionKeyRef.current = key;
+    if (!action) return; // null/clear is a no-op — doesn't interrupt or flush the queue
+    if (activeRef.current === null) {
+      activate(action); // idle → play now
+    } else {
+      queuedActionSpecRef.current = action; // busy → queue (replacing any prior queued)
+    }
+  }, [action, activate]);
+  const activeAction = useMemo(
+    () => (active ? createAction(active.spec) : null),
+    [active],
   );
   useEffect(() => {
-    if (!activeReaction) return;
-    const timer = setTimeout(() => setActiveReactionName(null), activeReaction.duration);
+    if (!activeAction) return;
+    // Locomotion actions arm the persistent body.x stride and commit their net move on completion.
+    let walkDelta = 0;
+    if (activeAction.locomotion) {
+      const { direction, travelBodyWidths, rampStartMs, rampEndMs, accelMs } = activeAction.locomotion;
+      const sign = direction === "right" ? 1 : -1;
+      walkDelta = sign * travelBodyWidths * BODY_W * scale;
+      walkStateRef.current = { startElapsed: null, delta: walkDelta, rampStartMs, rampEndMs, accelMs };
+    }
+    const timer = setTimeout(() => {
+      if (activeAction.locomotion) {
+        committedXRef.current += walkDelta;
+        walkStateRef.current = null;
+        onWalkComplete?.(walkDelta);
+      }
+      // Dequeue: play the queued action next if present, otherwise go idle.
+      const next = queuedActionSpecRef.current;
+      queuedActionSpecRef.current = null;
+      activate(next);
+    }, activeAction.duration);
     return () => clearTimeout(timer);
-  }, [activeReaction]);
+  }, [activeAction, scale, onWalkComplete, activate]);
 
-  // eyes.blink — reaction > debug > (no ambient in debug mode) > hangout's random blinks.
+  // eyes.blink — action > debug > (no ambient in debug mode) > hangout's random blinks.
   const blinkAnimation = useMemo(() => {
-    if (activeReaction?.animations[BLINK_KEY]) return activeReaction.animations[BLINK_KEY];
+    if (activeAction?.animations[BLINK_KEY]) return activeAction.animations[BLINK_KEY];
     const dbg = debugAnimFor(BLINK_KEY);
     if (dbg) return dbg;
     if (mode === "debug") return null;
     return createBlinkAnimation();
-  }, [activeReaction, mode, debugAnimFor]);
+  }, [activeAction, mode, debugAnimFor]);
   useCapabilityAnimation(BLINK_KEY, blinkAnimation);
 
-  // head.tilt — reaction > debug. No mode-level animation.
+  // head.tilt — action > debug. No mode-level animation.
   const headTiltAnimation = useMemo(() => {
-    if (activeReaction?.animations[HEAD_TILT_KEY]) return activeReaction.animations[HEAD_TILT_KEY];
+    if (activeAction?.animations[HEAD_TILT_KEY]) return activeAction.animations[HEAD_TILT_KEY];
     return debugAnimFor(HEAD_TILT_KEY);
-  }, [activeReaction, debugAnimFor]);
+  }, [activeAction, debugAnimFor]);
   useCapabilityAnimation(HEAD_TILT_KEY, headTiltAnimation);
 
-  // head.turn + head.bob — reaction overrides if it touches either; otherwise hangout runs
-  // lookAround. lookAround is disabled while a reaction is active so its state machine resets
-  // and the head settles cleanly during the reaction, with no leftover slide-in-progress when
-  // the reaction ends. lookAround is also null in debug mode, so the null-fallback below acts
+  // head.turn + head.bob — action overrides if it touches either; otherwise hangout runs
+  // lookAround. lookAround is disabled while a action is active so its state machine resets
+  // and the head settles cleanly during the action, with no leftover slide-in-progress when
+  // the action ends. lookAround is also null in debug mode, so the null-fallback below acts
   // as "no ambient in debug mode" for these capabilities.
   const lookAround = useMemo(
-    () => (mode === "hangout" && !activeReaction ? createLookAroundAnimation() : null),
-    [mode, activeReaction],
+    () => (mode === "hangout" && !activeAction ? createLookAroundAnimation() : null),
+    [mode, activeAction],
   );
 
   // head.turn is an OFFSET on top of body.turn (renderers compute effective = sum). lookAround
   // drives it ambiently in hangout — the head wiggles around whatever angle the body is currently
-  // at. Reactions like shakeHead override and shake from that body angle too.
+  // at. Actions like shakeHead override and shake from that body angle too.
   const headTurnAnimation = useMemo(() => {
-    if (activeReaction?.animations[HEAD_TURN_KEY]) return activeReaction.animations[HEAD_TURN_KEY];
+    if (activeAction?.animations[HEAD_TURN_KEY]) return activeAction.animations[HEAD_TURN_KEY];
     const dbg = debugAnimFor(HEAD_TURN_KEY);
     if (dbg) return dbg;
     return lookAround?.headTurn ?? null;
-  }, [activeReaction, debugAnimFor, lookAround]);
+  }, [activeAction, debugAnimFor, lookAround]);
   useCapabilityAnimation(HEAD_TURN_KEY, headTurnAnimation);
 
   // body.turn has no mode-level idle — the body stays wherever it's last been pointed (rest by
-  // default). Reactions / debug / future deliberate body-turn animations drive it.
+  // default). Actions / debug / future deliberate body-turn animations drive it.
   const bodyTurnAnimation = useMemo(() => {
-    if (activeReaction?.animations[BODY_TURN_KEY]) return activeReaction.animations[BODY_TURN_KEY];
+    if (activeAction?.animations[BODY_TURN_KEY]) return activeAction.animations[BODY_TURN_KEY];
     const dbg = debugAnimFor(BODY_TURN_KEY);
     if (dbg) return dbg;
     return null;
-  }, [activeReaction, debugAnimFor]);
-  useCapabilityAnimation(BODY_TURN_KEY, bodyTurnAnimation);
+  }, [activeAction, debugAnimFor]);
+  // When the active action drives body.turn (e.g. walk), let it override the conflict-release
+  // duration — walk passes 0 so the ambient head pose snaps to neutral and the body turns toward
+  // travel immediately, instead of sliding while still facing the camera during the unwind.
+  const bodyTurnReleaseMs = activeAction?.animations[BODY_TURN_KEY] ? activeAction.releaseMs : undefined;
+  useCapabilityAnimation(BODY_TURN_KEY, bodyTurnAnimation, bodyTurnReleaseMs);
+
+  // body.bounce + body.lean — gait capabilities driven only by a walk action (or debug). No
+  // mode-level idle; they rest when nothing drives them, releasing cleanly after a walk.
+  const bodyBounceAnimation = useMemo(() => {
+    if (activeAction?.animations[BODY_BOUNCE_KEY]) return activeAction.animations[BODY_BOUNCE_KEY];
+    return debugAnimFor(BODY_BOUNCE_KEY);
+  }, [activeAction, debugAnimFor]);
+  useCapabilityAnimation(BODY_BOUNCE_KEY, bodyBounceAnimation);
+
+  const bodyLeanAnimation = useMemo(() => {
+    if (activeAction?.animations[BODY_LEAN_KEY]) return activeAction.animations[BODY_LEAN_KEY];
+    return debugAnimFor(BODY_LEAN_KEY);
+  }, [activeAction, debugAnimFor]);
+  useCapabilityAnimation(BODY_LEAN_KEY, bodyLeanAnimation);
+
+  const legsSwingAnimation = useMemo(() => {
+    if (activeAction?.animations[LEGS_SWING_KEY]) return activeAction.animations[LEGS_SWING_KEY];
+    return debugAnimFor(LEGS_SWING_KEY);
+  }, [activeAction, debugAnimFor]);
+  useCapabilityAnimation(LEGS_SWING_KEY, legsSwingAnimation);
+
+  const armsSwingAnimation = useMemo(() => {
+    if (activeAction?.animations[ARMS_SWING_KEY]) return activeAction.animations[ARMS_SWING_KEY];
+    return debugAnimFor(ARMS_SWING_KEY);
+  }, [activeAction, debugAnimFor]);
+  useCapabilityAnimation(ARMS_SWING_KEY, armsSwingAnimation);
 
   const headBobAnimation = useMemo(() => {
-    if (activeReaction?.animations[HEAD_BOB_KEY]) return activeReaction.animations[HEAD_BOB_KEY];
+    if (activeAction?.animations[HEAD_BOB_KEY]) return activeAction.animations[HEAD_BOB_KEY];
     const dbg = debugAnimFor(HEAD_BOB_KEY);
     if (dbg) return dbg;
     return lookAround?.headBob ?? null;
-  }, [activeReaction, debugAnimFor, lookAround]);
+  }, [activeAction, debugAnimFor, lookAround]);
   useCapabilityAnimation(HEAD_BOB_KEY, headBobAnimation);
 
-  // arms.left.raise — reaction > debug. No mode-level animation.
+  // arms.left.raise — action > debug. No mode-level animation.
   const armsLeftRaiseAnimation = useMemo(() => {
-    if (activeReaction?.animations[ARMS_LEFT_RAISE_KEY]) return activeReaction.animations[ARMS_LEFT_RAISE_KEY];
+    if (activeAction?.animations[ARMS_LEFT_RAISE_KEY]) return activeAction.animations[ARMS_LEFT_RAISE_KEY];
     return debugAnimFor(ARMS_LEFT_RAISE_KEY);
-  }, [activeReaction, debugAnimFor]);
+  }, [activeAction, debugAnimFor]);
   useCapabilityAnimation(ARMS_LEFT_RAISE_KEY, armsLeftRaiseAnimation);
 
-  // antenna.wiggle — reaction > debug > hangout's occasional damped wiggles. !activeReaction
-  // gating mirrors lookAround so reactions interrupt cleanly; debug overrides regardless.
+  // arms.left.wave — action > debug. The disagree hand-wave (forearm only).
+  const armsLeftWaveAnimation = useMemo(() => {
+    if (activeAction?.animations[ARMS_LEFT_WAVE_KEY]) return activeAction.animations[ARMS_LEFT_WAVE_KEY];
+    return debugAnimFor(ARMS_LEFT_WAVE_KEY);
+  }, [activeAction, debugAnimFor]);
+  useCapabilityAnimation(ARMS_LEFT_WAVE_KEY, armsLeftWaveAnimation);
+
+  // antenna.wiggle — action > debug > hangout's occasional damped wiggles. !activeAction
+  // gating mirrors lookAround so actions interrupt cleanly; debug overrides regardless.
   const antennaWiggleAnimation = useMemo(() => {
-    if (activeReaction?.animations[ANTENNA_WIGGLE_KEY]) return activeReaction.animations[ANTENNA_WIGGLE_KEY];
+    if (activeAction?.animations[ANTENNA_WIGGLE_KEY]) return activeAction.animations[ANTENNA_WIGGLE_KEY];
     const dbg = debugAnimFor(ANTENNA_WIGGLE_KEY);
     if (dbg) return dbg;
-    if (mode === "hangout" && !activeReaction) return createAntennaWiggleAnimation();
+    if (mode === "hangout" && !activeAction) return createAntennaWiggleAnimation();
     return null;
-  }, [activeReaction, mode, debugAnimFor]);
+  }, [activeAction, mode, debugAnimFor]);
   useCapabilityAnimation(ANTENNA_WIGGLE_KEY, antennaWiggleAnimation);
 
   return (
@@ -225,20 +402,32 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
           }}
         />
       )}
-      <Body scale={scale} theme={theme} showAnchor={showAnchor} chestImage={chestImage} chestOutline={chestOutline}>
-        <Head scale={scale} theme={theme} showAnchor={showAnchor}>
-          <LeftEye scale={scale} theme={theme} />
-          <RightEye scale={scale} theme={theme} />
-          <LeftEar scale={scale} theme={theme} />
-          <RightEar scale={scale} theme={theme} />
-          <Antenna scale={scale} theme={theme} showAnchor={showAnchor} />
-        </Head>
-        <LeftArm scale={scale} theme={theme} showAnchor={showAnchor} />
-        <RightArm scale={scale} theme={theme} showAnchor={showAnchor} />
-        <LeftLeg scale={scale} theme={theme} showAnchor={showAnchor} />
-        <RightLeg scale={scale} theme={theme} showAnchor={showAnchor} />
-      </Body>
-      <Shadow scale={scale} theme={theme} />
+      <div
+        ref={locomotionRef}
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: 0,
+          height: 0,
+          overflow: "visible",
+        }}
+      >
+        <Body scale={scale} theme={theme} showAnchor={showAnchor} chestImage={chestImage} chestOutline={chestOutline}>
+          <Head scale={scale} theme={theme} showAnchor={showAnchor}>
+            <LeftEye scale={scale} theme={theme} />
+            <RightEye scale={scale} theme={theme} />
+            <LeftEar scale={scale} theme={theme} />
+            <RightEar scale={scale} theme={theme} />
+            <Antenna scale={scale} theme={theme} showAnchor={showAnchor} />
+          </Head>
+          <LeftArm scale={scale} theme={theme} showAnchor={showAnchor} />
+          <RightArm scale={scale} theme={theme} showAnchor={showAnchor} />
+          <LeftLeg scale={scale} theme={theme} showAnchor={showAnchor} />
+          <RightLeg scale={scale} theme={theme} showAnchor={showAnchor} />
+        </Body>
+        <Shadow scale={scale} theme={theme} />
+      </div>
     </div>
   );
 }
@@ -314,9 +503,31 @@ function useBodyRef(scale: number) {
         mainFace.style.width = `${mainW}px`;
         mainFace.style.left = `${mainLeft}px`;
       }
+
+      // Walk gait — vertical step bounce (body.bounce) and lean into the travel direction
+      // (body.lean) compose into the body's own transform, on top of the static centering +
+      // rotation. The shadow is a sibling of Body, so it neither bounces nor leans (stays grounded).
+      const bounce = caps.get(BODY_BOUNCE_KEY) ?? 0;
+      const lean = caps.get(BODY_LEAN_KEY) ?? 0.5;
+      const leanDeg = (lean - 0.5) * 2 * BODY_LEAN_DEG;
+      el.style.transform = `translateX(-50%) translateY(${-bounce * BODY_BOUNCE_PX * scale}px) rotate(${BODY_ROTATION + leanDeg}deg)`;
     },
     [scale],
   );
+  useAnimationRenderer(render);
+  return ref;
+}
+
+// Wraps Body + Shadow and slides the whole figure horizontally by body.x (scaled px). The
+// wrapper is a zero-size box at the figure's origin, so its children keep their existing
+// absolute positioning; only the translate moves. This is what persists a walk's displacement.
+function useLocomotionRef() {
+  const ref = useRef<HTMLDivElement>(null);
+  const render = useCallback((caps: ReadonlyMap<string, number>) => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.transform = `translateX(${caps.get(BODY_X_KEY) ?? 0}px)`;
+  }, []);
   useAnimationRenderer(render);
   return ref;
 }
@@ -462,14 +673,14 @@ function useHeadRef(scale: number) {
     const mainLeftInset = HEAD_OFFSET * HEAD_FACE_INSET;
     const mainSideMargin = HEAD_OFFSET * (2 - HEAD_FACE_INSET);
 
-    // head.tilt — stylized rounded-box rotation. The apparent silhouette grows TALLER at the
-    // extremes (HEAD_TILT_RATIO > 1). Anchor follows tilt direction:
-    //   tilt=1 (look up):   bottom-anchored — chin stays at body, crown extends upward.
-    //   tilt=0 (look down): top-anchored — crown stays put, chin extends downward.
+    // head.tilt — stylized rounded-box rotation. The apparent silhouette foreshortens at the
+    // extremes (HEAD_TILT_RATIO < 1). Anchor follows tilt direction:
+    //   tilt=1 (look up):   bottom-anchored — chin stays at body, crown drops down.
+    //   tilt=0 (look down): top-anchored — crown stays put, chin pulls up.
     //   tilt=0.5 (rest):    no shift either way (baseH = original, so the term is 0).
     // anchorRatio = tilt directly interpolates between these — when tilt=0 the shift term
-    // vanishes (top stays), when tilt=1 the shift term is the full negative delta (top moves
-    // up by the full grow amount). Smooth, no discontinuity at the rest point.
+    // vanishes (top stays), when tilt=1 the shift term is the full positive delta (top moves
+    // down by the full shrink amount). Smooth, no discontinuity at the rest point.
     // The margins are equal in both axes, so the same constant-inset trick works vertically.
     const tilt = remapTilt(caps.get(HEAD_TILT_KEY) ?? 0.5);
     const tiltFactor = (1 - HEAD_TILT_RATIO) * 2 * (.5 - Math.abs(tilt - .5)) + HEAD_TILT_RATIO;
@@ -480,16 +691,26 @@ function useHeadRef(scale: number) {
     const mainTopInset = HEAD_OFFSET * HEAD_FACE_INSET;
     const mainVerticalMargin = HEAD_OFFSET * (2 - HEAD_FACE_INSET);
 
-    // Border-radius factors. Turn shrinks all corners uniformly (existing behavior). Tilt is
-    // asymmetric: tilt down grows the TOP corners, tilt up grows the BOTTOM corners, the
-    // other side stays at its turn-reduced rest. CSS shorthand is `TL TR BR BL` (clockwise).
-    const turnRadiusFactor = 1 - Math.abs(turn - .5) * 2 * (1 - HEAD_TURN_RADIUS_RATIO);
+    // Border-radius factors, per corner. Both axes are asymmetric:
+    //   turn — the TRAILING horizontal side (away from the look direction) grows; the LEADING side
+    //          stays at neutral. Look left (turn < 0.5) → right corners grow; look right → left.
+    //   tilt — tilt down grows the TOP corners, tilt up grows the BOTTOM corners; other side rests.
+    // CSS shorthand is `TL TR BR BL` (clockwise), so left corners = TL,BL and right = TR,BR.
+    const turnDistance = Math.abs(turn - .5) * 2;
+    const grownSide = 1 + turnDistance * (HEAD_TURN_RADIUS_GROW - 1);
+    const lookingLeft = turn < 0.5;
+    const leftTurnFactor = lookingLeft ? 1 : grownSide;   // left corners grow when looking right
+    const rightTurnFactor = lookingLeft ? grownSide : 1;  // right corners grow when looking left
     const tiltDownDistance = Math.max(0, 0.5 - tilt) * 2;
     const tiltUpDistance = Math.max(0, tilt - 0.5) * 2;
-    const topRadiusFactor = turnRadiusFactor * (1 + tiltDownDistance * (HEAD_TILT_RADIUS_GROW - 1));
-    const bottomRadiusFactor = turnRadiusFactor * (1 + tiltUpDistance * (HEAD_TILT_RADIUS_GROW - 1));
+    const topTiltFactor = 1 + tiltDownDistance * (HEAD_TILT_RADIUS_GROW - 1);
+    const bottomTiltFactor = 1 + tiltUpDistance * (HEAD_TILT_RADIUS_GROW - 1);
+    const tlFactor = leftTurnFactor * topTiltFactor;
+    const trFactor = rightTurnFactor * topTiltFactor;
+    const brFactor = rightTurnFactor * bottomTiltFactor;
+    const blFactor = leftTurnFactor * bottomTiltFactor;
     const radiusShorthand = (baseR: number) =>
-      `${baseR * topRadiusFactor}px ${baseR * topRadiusFactor}px ${baseR * bottomRadiusFactor}px ${baseR * bottomRadiusFactor}px`;
+      `${baseR * tlFactor}px ${baseR * trFactor}px ${baseR * brFactor}px ${baseR * blFactor}px`;
 
     const headBase = el.firstElementChild as HTMLElement | null;
     if (headBase) {
@@ -531,15 +752,18 @@ const HEAD_FACE_INSET = 0.7;
 const HEAD_PIVOT_X = (HEAD_W + HEAD_OFFSET) / 2;
 const HEAD_PIVOT_Y = (HEAD_H + HEAD_OFFSET) * 0.85;
 const HEAD_ROTATION = 0;
-const HEAD_TURN_RATIO = .72;
-const HEAD_TURN_RADIUS_RATIO = .75;
-// Tilting a rounded-box head (think: stylized robot) about a horizontal axis makes the
-// apparent silhouette slightly TALLER (the diagonal of a tilted box exceeds its straight-on
-// height) — HEAD_TILT_RATIO > 1 (grow). Bottom-anchored — chin stays attached to the body,
-// the crown extends upward. Border-radius is asymmetric: tilting down makes the TOP corners
+const HEAD_TURN_RATIO = .75;
+// On head.turn, the two TRAILING corners (the side away from the look direction) grow their
+// border-radius by up to this multiplier at the extreme; the two LEADING corners stay at their
+// neutral radius. Mirrored per direction — look left → right corners grow, look right → left
+// corners grow. (Replaces the old uniform-shrink behavior; >1 = grow, 1 = no change.)
+const HEAD_TURN_RADIUS_GROW = 1.4;
+// Tilting a rounded-box head (think: stylized robot) foreshortens the visible silhouette
+// vertically — HEAD_TILT_RATIO < 1 (shrink). Bottom-anchored — chin stays attached to the
+// body, the crown comes down. Border-radius is asymmetric: tilting down makes the TOP corners
 // grow (the back of the head is curving over into view), tilting up makes the BOTTOM corners
 // grow (mirror — underside of the chin curving forward). The unaffected side stays at rest.
-const HEAD_TILT_RATIO = 1.08;             // visible head HEIGHT fraction at full tilt (>1 = taller)
+const HEAD_TILT_RATIO = 0.92;             // visible head HEIGHT fraction at full tilt (<1 = shorter)
 const HEAD_TILT_RADIUS_GROW = 1.25;        // border-radius multiplier on the corners exposed by the tilt direction
 
 // head.tilt's input range [0, 1] is remapped to a narrower rendered range at read time. The
@@ -635,12 +859,12 @@ const EYE_OFFSET_V = EYE_H - PUPIL_H;   // constant top+bottom pupil margin (4px
 const EYE_OFFSET_H = EYE_W - PUPIL_W;   // constant left+right pupil margin (4px each side)
 const MAX_BLINK_CLOSE = .84;
 const EYE_TURN_W_RATIO = 0.24;           // min eye-width fraction at full turn
-const EYE_TURN_SLIDE_GAZE = 30;         // base slide (unscaled px) both eyes get toward the gaze
+const EYE_TURN_SLIDE_GAZE = 26;         // base slide (unscaled px) both eyes get toward the gaze
 const EYE_TURN_SLIDE_CONVERGENCE = 24;  // extra slide each eye gets toward face center → far eye nets more travel
 const EYE_TILT_H_RATIO = 0.7;             // min eye-height fraction at full tilt — vertical analog of EYE_TURN_W_RATIO
 const EYE_TILT_PERSPECTIVE_POWER = 3;     // ease-in power for height shrink — 2 = gentle, 3 = aggressive (action concentrated at extremes)
 const EYE_TILT_SLIDE_UP = 58;             // vertical slide (unscaled px) when tilt > 0.5 — eyes slide up by this much at tilt=1
-const EYE_TILT_SLIDE_DOWN = 28;           // vertical slide (unscaled px) when tilt < 0.5 — eyes slide down by this much at tilt=0
+const EYE_TILT_SLIDE_DOWN = 14;           // vertical slide (unscaled px) when tilt < 0.5 — eyes slide down by this much at tilt=0
 
 // Shared eye renderer. Handles both eyes.blink (vertical) and head.turn (horizontal)
 // in a single tick, on the same element + pupil child. `side` is the CSS property
@@ -1003,27 +1227,6 @@ const ARM_OFFSET = 12;
 const ARM_SHOULDER_RATIO = 0.15;
 const SHOULDER_TURN_INWARD = 16;  // max unscaled px each shoulder anchor moves toward body center at full body.turn
 
-// Shared renderer for both arm and leg wrappers: shifts the wrapper inward (toward the body's
-// horizontal center) as body.turn moves away from 0.5. Linear in tiltDistance. Side picks which
-// CSS property to write — left for viewer-left limbs, right for viewer-right. The wrapper itself
-// is zero-width, anchored at the body container's edge; shifting its `left`/`right` slides every
-// child relative to that edge.
-function useBodyTurnInwardShiftRef(scale: number, side: "left" | "right", maxShift: number) {
-  const ref = useRef<HTMLDivElement>(null);
-  const render = useCallback(
-    (caps: ReadonlyMap<string, number>) => {
-      const el = ref.current;
-      if (!el) return;
-      const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
-      const distance = Math.abs(bodyTurn - 0.5) * 2;
-      el.style[side] = `${distance * maxShift * scale}px`;
-    },
-    [scale, side, maxShift],
-  );
-  useAnimationRenderer(render);
-  return ref;
-}
-
 const LEFT_UPPER_ANGLE = 25;
 const RIGHT_UPPER_ANGLE = -25;
 const LEFT_LOWER_ANGLE = -15;
@@ -1035,26 +1238,43 @@ const RIGHT_LOWER_ANGLE = 15;
 const LEFT_UPPER_RAISED_ANGLE = 45;
 const LEFT_LOWER_RAISED_ANGLE = 130;
 
-// Single shared renderer for both layers (outer outline + inner face) of the left arm. The
+// Shared renderer for both layers (outer outline + inner face) of an arm, for either side. The
 // wrapper div carries the ref; the renderer walks its children and sets each upper's transform
 // plus the corresponding lower's transform (the lower is the upper's firstElementChild — both
 // layers have the lower as their first child even when showAnchor adds a sibling PivotMarker).
-function useLeftArmRef(scale: number) {
+// Drives: body.turn inward shift; arms.swing (rotate the whole arm from the shoulder, anti-phase
+// across the two arms and counter to the same-side leg — so left arm swings forward as left leg
+// goes back); and, left arm only, the arms.left.raise "stop" gesture composed on top.
+function useArmRef(scale: number, side: "left" | "right") {
   const ref = useRef<HTMLDivElement>(null);
   const render = useCallback(
     (caps: ReadonlyMap<string, number>) => {
       const el = ref.current;
       if (!el) return;
+      const isLeft = side === "left";
 
-      // body.turn — shift the entire arm wrapper inward by sliding its left edge toward center.
+      // body.turn — shift the entire arm wrapper inward by sliding its edge toward center.
       const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
       const distance = Math.abs(bodyTurn - 0.5) * 2;
-      el.style.left = `${distance * SHOULDER_TURN_INWARD * scale}px`;
+      el.style[side] = `${distance * SHOULDER_TURN_INWARD * scale}px`;
 
-      // arms.left.raise — rotate both layers' upper and lower segments.
-      const raise = caps.get(ARMS_LEFT_RAISE_KEY) ?? 0;
-      const upperAngle = LEFT_UPPER_ANGLE + raise * (LEFT_UPPER_RAISED_ANGLE - LEFT_UPPER_ANGLE);
-      const lowerAngle = LEFT_LOWER_ANGLE + raise * (LEFT_LOWER_RAISED_ANGLE - LEFT_LOWER_ANGLE);
+      // arms.swing — rotate the upper arm about the shoulder. swingSign is the opposite of the
+      // same-side leg's (legs: left +1 / right -1) so each arm counter-swings its leg.
+      const swing = caps.get(ARMS_SWING_KEY) ?? 0.5;
+      const swingSign = isLeft ? -1 : 1;
+      const swingDelta = swingSign * (swing - 0.5) * 2 * ARM_SWING_DEG;
+
+      // arms.left.raise — left arm only; the "stop" gesture composes on top of the rest pose.
+      const raise = isLeft ? (caps.get(ARMS_LEFT_RAISE_KEY) ?? 0) : 0;
+      const restUpper = isLeft ? LEFT_UPPER_ANGLE : RIGHT_UPPER_ANGLE;
+      const restLower = isLeft ? LEFT_LOWER_ANGLE : RIGHT_LOWER_ANGLE;
+      const upperAngle = restUpper + raise * (LEFT_UPPER_RAISED_ANGLE - LEFT_UPPER_ANGLE) + swingDelta;
+      // arms.left.wave — left arm only; rotates the FOREARM about the elbow (upper arm/elbow stay
+      // put), waving the hand side to side. Composes on top of the raised forearm angle.
+      const wave = isLeft ? (caps.get(ARMS_LEFT_WAVE_KEY) ?? 0.5) : 0.5;
+      const waveDelta = (wave - 0.5) * 2 * HAND_WAVE_DEG;
+      const lowerAngle = restLower + raise * (LEFT_LOWER_RAISED_ANGLE - LEFT_LOWER_ANGLE) + waveDelta;
+
       for (let i = 0; i < el.children.length; i++) {
         const upper = el.children[i] as HTMLElement;
         upper.style.transform = `rotate(${upperAngle}deg)`;
@@ -1062,7 +1282,7 @@ function useLeftArmRef(scale: number) {
         if (lower) lower.style.transform = `rotate(${lowerAngle}deg)`;
       }
     },
-    [scale],
+    [scale, side],
   );
   useAnimationRenderer(render);
   return ref;
@@ -1070,7 +1290,7 @@ function useLeftArmRef(scale: number) {
 
 function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; theme: ColorTheme; showAnchor?: boolean }) {
   const s = (v: number) => v * scale;
-  const armRef = useLeftArmRef(scale);
+  const armRef = useArmRef(scale, "left");
 
   return (
     <div
@@ -1153,7 +1373,7 @@ function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; them
 
 function RightArm({ scale = 1, theme, showAnchor = false }: { scale: number; theme: ColorTheme; showAnchor?: boolean }) {
   const s = (v: number) => v * scale;
-  const armRef = useBodyTurnInwardShiftRef(scale, "right", SHOULDER_TURN_INWARD);
+  const armRef = useArmRef(scale, "right");
 
   return (
     <div
@@ -1267,8 +1487,16 @@ function useLegRef(scale: number, side: "left" | "right") {
       const distance = Math.abs(bodyTurn - 0.5) * 2;
       const isLeft = side === "left";
 
-      // Hip inward shift (identical to useBodyTurnInwardShiftRef).
+      // Hip inward shift — slide the leg wrapper's edge toward body center as body.turn departs 0.5.
       el.style[side] = `${distance * HIP_TURN_INWARD * scale}px`;
+
+      // legs.swing — rotate the whole leg about the hip, anti-phase across the two legs, so they
+      // alternate during a walk. Composes on top of each leg's rest angle. Both upper-leg layers
+      // (outline + face) share the angle; the foot rides along since it's their child.
+      const swing = caps.get(LEGS_SWING_KEY) ?? 0.5;
+      const swingSign = isLeft ? 1 : -1;
+      const restAngle = isLeft ? LEFT_LEG_ANGLE : RIGHT_LEG_ANGLE;
+      const legAngle = restAngle + swingSign * (swing - 0.5) * 2 * LEG_SWING_DEG;
 
       // Foot slide combines trailing-forward + leading-pullback contributions. Only one
       // contribution is non-zero at a time (a leg is either trailing or leading, not both).
@@ -1282,9 +1510,10 @@ function useLegRef(scale: number, side: "left" | "right") {
       const footInset = (FOOT_REST_INSET + slide) * scale;
 
       // Two upper-leg layers (outer outline + inner face) — each has the foot as its
-      // firstElementChild. Update both feet's position together.
+      // firstElementChild. Apply the swing rotation to each layer and update both feet together.
       for (let i = 0; i < el.children.length; i++) {
         const upperLeg = el.children[i] as HTMLElement;
+        upperLeg.style.transform = `rotate(${legAngle}deg)`;
         const foot = upperLeg.firstElementChild as HTMLElement | null;
         if (foot) foot.style[side] = `${footInset}px`;
       }
@@ -1463,10 +1692,10 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
   );
 }
 
-const SHADOW_W = 110;
-const SHADOW_H = 14;
+const SHADOW_W = 80;
+const SHADOW_H = 16;
 const SHADOW_BLUR = 5;
-const SHADOW_OPACITY = 0.2;
+const SHADOW_OPACITY = 0.24;
 
 function Shadow({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
   const s = (v: number) => v * scale;

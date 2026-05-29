@@ -34,13 +34,15 @@ export function useAnimationRenderer(render: RendererFn): void {
   useEffect(() => engine.registerRenderer(render), [engine, render]);
 }
 
-// Mount/unmount an animation that drives a capability.
-export function useCapabilityAnimation(key: string, anim: AnimationFn | null): void {
+// Mount/unmount an animation that drives a capability. releaseMs optionally overrides the
+// engine's conflict-release/unwind duration for this animation's install (e.g. 0 for an instant
+// handoff); omitted = engine default.
+export function useCapabilityAnimation(key: string, anim: AnimationFn | null, releaseMs?: number): void {
   const engine = useEngine();
   useEffect(() => {
-    engine.setAnimation(key, anim);
+    engine.setAnimation(key, anim, releaseMs);
     return () => engine.setAnimation(key, null);
-  }, [engine, key, anim]);
+  }, [engine, key, anim, releaseMs]);
 }
 
 // Declare a set of capability keys as mutually exclusive. The engine will smoothly unwind any
