@@ -1331,7 +1331,7 @@ function LeftLeg({ scale = 1, theme, showAnchor = false }: { scale: number; them
           style={{
             position: "absolute",
             top: s(LEG_H - FOOT_H + LEG_OFFSET / 2),
-            left: s(LEG_OFFSET * .25),
+            left: s(LEG_OFFSET * .5),
             width: s(FOOT_H),
             height: s(FOOT_W),
             transformOrigin: `${s(LEG_W / 2)}px ${s(FOOT_H / 2)}px`,
@@ -1361,7 +1361,7 @@ function LeftLeg({ scale = 1, theme, showAnchor = false }: { scale: number; them
           style={{
             position: "absolute",
             top: s(LEG_H - FOOT_H + LEG_OFFSET / 2),
-            left: s(LEG_OFFSET * .25),
+            left: s(LEG_OFFSET),
             width: s(FOOT_H - LEG_OFFSET),
             height: s(FOOT_W - LEG_OFFSET),
             backgroundColor: theme.primary,
@@ -1415,7 +1415,7 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
           style={{
             position: "absolute",
             top: s(LEG_H - FOOT_H + LEG_OFFSET / 2),
-            right: s(LEG_OFFSET * .25),
+            right: s(LEG_OFFSET),
             width: s(FOOT_H),
             height: s(FOOT_W),
             transformOrigin: `${s(FOOT_H - LEG_W / 2)}px ${s(FOOT_H / 2)}px`,
@@ -1445,7 +1445,7 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
           style={{
             position: "absolute",
             top: s(LEG_H - FOOT_H + LEG_OFFSET / 2),
-            right: s(LEG_OFFSET * .25),
+            right: s(LEG_OFFSET),
             width: s(FOOT_H - LEG_OFFSET),
             height: s(FOOT_W - LEG_OFFSET),
             backgroundColor: theme.primary,
