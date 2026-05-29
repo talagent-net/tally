@@ -42,3 +42,14 @@ export function useCapabilityAnimation(key: string, anim: AnimationFn | null): v
     return () => engine.setAnimation(key, null);
   }, [engine, key, anim]);
 }
+
+// Declare a set of capability keys as mutually exclusive. The engine will smoothly unwind any
+// off-rest partner when one of them gets a new animation, and defer the new animation's start
+// until the unwind is complete. Pass a stable array (module-level constant or memoized) — the
+// engine deduplicates registrations anyway, but a stable ref avoids unnecessary effect re-runs.
+export function useConflict(keys: string[]): void {
+  const engine = useEngine();
+  useEffect(() => {
+    engine.registerConflict(keys);
+  }, [engine, keys]);
+}

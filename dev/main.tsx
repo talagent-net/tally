@@ -1,7 +1,7 @@
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Tally } from "../src";
-import type { ColorTheme, Mode } from "../src";
+import type { ColorTheme, Mode, ReactionName } from "../src";
 import talagentInner from "./talagent_inner.png";
 import talagentOuter from "./talagent_outer.png";
 import claudecodeInner from "./claudecode_inner.png";
@@ -61,7 +61,9 @@ const themes: Record<string, ColorTheme> = {
 
 const scales = [.36, 0.5, 1, 1.5, 2, 2.5, 3, 3.5];
 const modes: Mode[] = ["hangout", "debug"];
-const debugCapabilities = ["eyes.blink", "head.bob", "head.turn", "head.tilt"];
+const DEBUG_CAPABILITY_OFF = "(off)";
+const debugCapabilities = [DEBUG_CAPABILITY_OFF, "eyes.blink", "head.bob", "head.turn", "head.tilt", "arms.left.raise", "antenna.wiggle"];
+const reactions: ReactionName[] = ["disagree"];
 
 function App() {
   const [themeName, setThemeName] = useState("default");
@@ -69,8 +71,16 @@ function App() {
   const [showAnchor, setShowAnchor] = useState(false);
   const [logoName, setLogoName] = useState<string>("talagent");
   const [mode, setMode] = useState<Mode>("hangout");
-  const [debugCapability, setDebugCapability] = useState<string>(debugCapabilities[0]);
-  const [debugValue, setDebugValue] = useState<number>(1);
+  const [debugCapability, setDebugCapability] = useState<string>(DEBUG_CAPABILITY_OFF);
+  const [debugValue, setDebugValue] = useState<number>(0.5);
+  const [reaction, setReaction] = useState<ReactionName | null>(null);
+
+  // Fire a reaction by toggling null → name. The Tally component dedupes against its last
+  // value, so the null bounce is needed to re-fire the same reaction.
+  const fireReaction = (name: ReactionName) => {
+    setReaction(null);
+    setTimeout(() => setReaction(name), 50);
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 32, gap: 24 }}>
@@ -133,13 +143,12 @@ function App() {
           </select>
         </label>
       </div>
-      <div style={{ display: "flex", gap: 16, alignItems: "center", opacity: mode === "debug" ? 1 : 0.4 }}>
+      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
         <label style={{ fontSize: 14, color: "#666" }}>
-          Capability
+          Debug capability
           <select
             value={debugCapability}
             onChange={(e) => setDebugCapability(e.target.value)}
-            disabled={mode !== "debug"}
             style={{ marginLeft: 8, padding: "4px 8px" }}
           >
             {debugCapabilities.map((c) => (
@@ -155,12 +164,25 @@ function App() {
             max={1}
             step={0.01}
             value={debugValue}
-            disabled={mode !== "debug"}
+            disabled={debugCapability === DEBUG_CAPABILITY_OFF}
             onChange={(e) => setDebugValue(Number(e.target.value))}
             style={{ width: 180 }}
           />
           <span style={{ fontVariantNumeric: "tabular-nums", minWidth: 36 }}>{debugValue.toFixed(2)}</span>
         </label>
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <span style={{ fontSize: 14, color: "#666" }}>Reactions:</span>
+        {reactions.map((name) => (
+          <button
+            key={name}
+            type="button"
+            onClick={() => fireReaction(name)}
+            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
+          >
+            {name}
+          </button>
+        ))}
       </div>
       <div style={{ marginTop: scale * 240 + 40 }}>
         <Tally
@@ -172,6 +194,7 @@ function App() {
           chestOutline={logos[logoName]?.outer}
           debugCapability={debugCapability}
           debugValue={debugValue}
+          reaction={reaction}
         />
       </div>
     </div>

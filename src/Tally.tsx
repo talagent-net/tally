@@ -1,13 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { colors as defaultColors } from "./colors";
-import { AnimationProvider, useAnimationRenderer, useCapability, useCapabilityAnimation } from "./animation/context";
+import { AnimationProvider, useAnimationRenderer, useCapability, useCapabilityAnimation, useConflict } from "./animation/context";
 import { createBlinkAnimation } from "./animation/blink";
+import { createLookAroundAnimation } from "./animation/lookAround";
+import { createAntennaWiggleAnimation } from "./animation/antennaWiggle";
+import { createReaction } from "./animation/reactions";
+import type { ReactionName } from "./animation/reactions";
 
 const BLINK_KEY = "eyes.blink";
 const HEAD_BOB_KEY = "head.bob";
 const HEAD_TURN_KEY = "head.turn";
 const HEAD_TILT_KEY = "head.tilt";
+const ARMS_LEFT_RAISE_KEY = "arms.left.raise";
+const ANTENNA_WIGGLE_KEY = "antenna.wiggle";
 const MAX_HEAD_BOB_DEGREES = 18;
+
+// head.tilt and head.turn share the head's geometry and visually conflict if applied together.
+// Declared once via useConflict — the engine handles the smooth handoff between them.
+const HEAD_AXIS_CONFLICT = [HEAD_TILT_KEY, HEAD_TURN_KEY];
 
 export type Mode = "hangout" | "jump" | "debug";
 
@@ -36,6 +46,10 @@ export interface TallyProps {
   // bypassing the regular mode animations.
   debugCapability?: string;
   debugValue?: number;
+  // One-shot reactions override the mode for their duration. To re-fire the same reaction,
+  // set this prop to null then back to the same value — the component tracks last-fired to
+  // dedupe and would otherwise ignore a no-change render.
+  reaction?: ReactionName | null;
 }
 
 const BASE = {
@@ -51,7 +65,7 @@ export function Tally(props: TallyProps) {
   );
 }
 
-function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, chestOutline, debugCapability, debugValue }: TallyProps) {
+function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, chestOutline, debugCapability, debugValue, reaction }: TallyProps) {
   const s = (v: number) => v * scale;
 
   // Capabilities — declared once at the root with their rest values.
@@ -59,6 +73,11 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   useCapability(HEAD_BOB_KEY, 0.5); // 0.5 = centered, 0 = max left tilt, 1 = max right tilt
   useCapability(HEAD_TURN_KEY, 0.5); // 0.5 = looking straight, 0 = looking left, 1 = looking right
   useCapability(HEAD_TILT_KEY, 0.5); // 0.5 = looking straight, 0 = looking down, 1 = looking up
+  useCapability(ARMS_LEFT_RAISE_KEY, 0); // 0 = arm at rest pose; 1 = raised to a "stop" gesture
+  useCapability(ANTENNA_WIGGLE_KEY, 0.5); // 0.5 = no wiggle; 0/1 = max wiggle in either direction
+
+  // head.tilt vs head.turn — the engine will smoothly unwind one when the other gets engaged.
+  useConflict(HEAD_AXIS_CONFLICT);
 
   // Debug value is read live via a ref so the animation closure stays stable.
   const debugValueRef = useRef(debugValue ?? 0);
@@ -66,28 +85,95 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     debugValueRef.current = debugValue ?? 0;
   }, [debugValue]);
 
+  // Debug override — when debugCapability matches a key, that capability is driven by the
+  // live slider value regardless of mode. Order in the useMemos below: reaction > debug
+  // override > mode default. Selecting an unmatched key (e.g. "(off)" from the dev page) makes
+  // this return null, so the mode default applies normally.
   const debugAnimFor = useCallback(
-    (key: string) =>
-      mode === "debug" && debugCapability === key ? () => debugValueRef.current : null,
-    [mode, debugCapability],
+    (key: string) => (debugCapability === key ? () => debugValueRef.current : null),
+    [debugCapability],
   );
 
-  // eyes.blink — debug overrides; otherwise hangout default of random blinks.
+  // Reaction lifecycle: the prop drives a transient active reaction that overrides mode-level
+  // animations for its duration. lastReactionRef dedupes against unchanged renders — to re-fire
+  // the same reaction, the consumer must change the prop value (typically null then back).
+  const lastReactionRef = useRef<ReactionName | null>(null);
+  const [activeReactionName, setActiveReactionName] = useState<ReactionName | null>(null);
+  useEffect(() => {
+    if ((reaction ?? null) === lastReactionRef.current) return;
+    lastReactionRef.current = reaction ?? null;
+    setActiveReactionName(reaction ?? null);
+  }, [reaction]);
+  const activeReaction = useMemo(
+    () => (activeReactionName ? createReaction(activeReactionName) : null),
+    [activeReactionName],
+  );
+  useEffect(() => {
+    if (!activeReaction) return;
+    const timer = setTimeout(() => setActiveReactionName(null), activeReaction.duration);
+    return () => clearTimeout(timer);
+  }, [activeReaction]);
+
+  // eyes.blink — reaction > debug > (no ambient in debug mode) > hangout's random blinks.
   const blinkAnimation = useMemo(() => {
-    if (mode === "debug") return debugAnimFor(BLINK_KEY);
+    if (activeReaction?.animations[BLINK_KEY]) return activeReaction.animations[BLINK_KEY];
+    const dbg = debugAnimFor(BLINK_KEY);
+    if (dbg) return dbg;
+    if (mode === "debug") return null;
     return createBlinkAnimation();
-  }, [mode, debugAnimFor]);
+  }, [activeReaction, mode, debugAnimFor]);
   useCapabilityAnimation(BLINK_KEY, blinkAnimation);
 
-  // head.bob / head.turn / head.tilt — debug-only for now; no mode animations yet.
-  const headBobAnimation = useMemo(() => debugAnimFor(HEAD_BOB_KEY), [debugAnimFor]);
-  useCapabilityAnimation(HEAD_BOB_KEY, headBobAnimation);
+  // head.tilt — reaction > debug. No mode-level animation.
+  const headTiltAnimation = useMemo(() => {
+    if (activeReaction?.animations[HEAD_TILT_KEY]) return activeReaction.animations[HEAD_TILT_KEY];
+    return debugAnimFor(HEAD_TILT_KEY);
+  }, [activeReaction, debugAnimFor]);
+  useCapabilityAnimation(HEAD_TILT_KEY, headTiltAnimation);
 
-  const headTurnAnimation = useMemo(() => debugAnimFor(HEAD_TURN_KEY), [debugAnimFor]);
+  // head.turn + head.bob — reaction overrides if it touches either; otherwise hangout runs
+  // lookAround. lookAround is disabled while a reaction is active so its state machine resets
+  // and the head settles cleanly during the reaction, with no leftover slide-in-progress when
+  // the reaction ends. lookAround is also null in debug mode, so the null-fallback below acts
+  // as "no ambient in debug mode" for these capabilities.
+  const lookAround = useMemo(
+    () => (mode === "hangout" && !activeReaction ? createLookAroundAnimation() : null),
+    [mode, activeReaction],
+  );
+
+  const headTurnAnimation = useMemo(() => {
+    if (activeReaction?.animations[HEAD_TURN_KEY]) return activeReaction.animations[HEAD_TURN_KEY];
+    const dbg = debugAnimFor(HEAD_TURN_KEY);
+    if (dbg) return dbg;
+    return lookAround?.headTurn ?? null;
+  }, [activeReaction, debugAnimFor, lookAround]);
   useCapabilityAnimation(HEAD_TURN_KEY, headTurnAnimation);
 
-  const headTiltAnimation = useMemo(() => debugAnimFor(HEAD_TILT_KEY), [debugAnimFor]);
-  useCapabilityAnimation(HEAD_TILT_KEY, headTiltAnimation);
+  const headBobAnimation = useMemo(() => {
+    if (activeReaction?.animations[HEAD_BOB_KEY]) return activeReaction.animations[HEAD_BOB_KEY];
+    const dbg = debugAnimFor(HEAD_BOB_KEY);
+    if (dbg) return dbg;
+    return lookAround?.headBob ?? null;
+  }, [activeReaction, debugAnimFor, lookAround]);
+  useCapabilityAnimation(HEAD_BOB_KEY, headBobAnimation);
+
+  // arms.left.raise — reaction > debug. No mode-level animation.
+  const armsLeftRaiseAnimation = useMemo(() => {
+    if (activeReaction?.animations[ARMS_LEFT_RAISE_KEY]) return activeReaction.animations[ARMS_LEFT_RAISE_KEY];
+    return debugAnimFor(ARMS_LEFT_RAISE_KEY);
+  }, [activeReaction, debugAnimFor]);
+  useCapabilityAnimation(ARMS_LEFT_RAISE_KEY, armsLeftRaiseAnimation);
+
+  // antenna.wiggle — reaction > debug > hangout's occasional damped wiggles. !activeReaction
+  // gating mirrors lookAround so reactions interrupt cleanly; debug overrides regardless.
+  const antennaWiggleAnimation = useMemo(() => {
+    if (activeReaction?.animations[ANTENNA_WIGGLE_KEY]) return activeReaction.animations[ANTENNA_WIGGLE_KEY];
+    const dbg = debugAnimFor(ANTENNA_WIGGLE_KEY);
+    if (dbg) return dbg;
+    if (mode === "hangout" && !activeReaction) return createAntennaWiggleAnimation();
+    return null;
+  }, [activeReaction, mode, debugAnimFor]);
+  useCapabilityAnimation(ANTENNA_WIGGLE_KEY, antennaWiggleAnimation);
 
   return (
     <div
@@ -267,47 +353,73 @@ function useHeadRef(scale: number) {
     const angle = (bob - 0.5) * 2 * MAX_HEAD_BOB_DEGREES;
     el.style.transform = `translateX(-50%) rotate(${HEAD_ROTATION + angle}deg)`;
 
-    // head.turn — PLACEHOLDER: linearly scales width with the value (0 → 50%, 1 → 150%).
-    // Replace with real 3D-turn rendering.
+    // head.turn — horizontal foreshortening. Width shrinks symmetrically around the center.
+    // Side outlines stay constant thickness because the inner divs use constant pixel insets
+    // from the (potentially shifted) base.
     const turn = caps.get(HEAD_TURN_KEY) ?? 0.5;
     const turnFactor = (1 - HEAD_TURN_RATIO) * 2 * (.5 - Math.abs(turn - .5)) + HEAD_TURN_RATIO;
-    const turnShift = (HEAD_W + HEAD_OFFSET) * scale * Math.abs(turn - .5) * (1 - HEAD_TURN_RATIO);
     const baseW = (HEAD_W + HEAD_OFFSET) * scale * turnFactor;
-
-    // Constant insets (in unscaled units) preserve outline thickness regardless of turn.
+    const turnShift = ((HEAD_W + HEAD_OFFSET) * scale - baseW) / 2;
     const lightLeftInset = HEAD_OFFSET / 2;
     const lightSideMargin = HEAD_OFFSET * 9 / 8;
     const mainLeftInset = HEAD_OFFSET * HEAD_FACE_INSET;
     const mainSideMargin = HEAD_OFFSET * (2 - HEAD_FACE_INSET);
 
-    // Border-radius shrinks toward the edges of the turn: full at center, HEAD_TURN_RADIUS_RATIO at extremes.
-    const radiusFactor = 1 - Math.abs(turn - .5) * 2 * (1 - HEAD_TURN_RADIUS_RATIO);
+    // head.tilt — stylized rounded-box rotation. The apparent silhouette grows TALLER at the
+    // extremes (HEAD_TILT_RATIO > 1). Anchor follows tilt direction:
+    //   tilt=1 (look up):   bottom-anchored — chin stays at body, crown extends upward.
+    //   tilt=0 (look down): top-anchored — crown stays put, chin extends downward.
+    //   tilt=0.5 (rest):    no shift either way (baseH = original, so the term is 0).
+    // anchorRatio = tilt directly interpolates between these — when tilt=0 the shift term
+    // vanishes (top stays), when tilt=1 the shift term is the full negative delta (top moves
+    // up by the full grow amount). Smooth, no discontinuity at the rest point.
+    // The margins are equal in both axes, so the same constant-inset trick works vertically.
+    const tilt = remapTilt(caps.get(HEAD_TILT_KEY) ?? 0.5);
+    const tiltFactor = (1 - HEAD_TILT_RATIO) * 2 * (.5 - Math.abs(tilt - .5)) + HEAD_TILT_RATIO;
+    const baseH = (HEAD_H + HEAD_OFFSET) * scale * tiltFactor;
+    const tiltShift = tilt * ((HEAD_H + HEAD_OFFSET) * scale - baseH);
+    const lightTopInset = HEAD_OFFSET / 2;
+    const lightVerticalMargin = HEAD_OFFSET * 9 / 8;
+    const mainTopInset = HEAD_OFFSET * HEAD_FACE_INSET;
+    const mainVerticalMargin = HEAD_OFFSET * (2 - HEAD_FACE_INSET);
+
+    // Border-radius factors. Turn shrinks all corners uniformly (existing behavior). Tilt is
+    // asymmetric: tilt down grows the TOP corners, tilt up grows the BOTTOM corners, the
+    // other side stays at its turn-reduced rest. CSS shorthand is `TL TR BR BL` (clockwise).
+    const turnRadiusFactor = 1 - Math.abs(turn - .5) * 2 * (1 - HEAD_TURN_RADIUS_RATIO);
+    const tiltDownDistance = Math.max(0, 0.5 - tilt) * 2;
+    const tiltUpDistance = Math.max(0, tilt - 0.5) * 2;
+    const topRadiusFactor = turnRadiusFactor * (1 + tiltDownDistance * (HEAD_TILT_RADIUS_GROW - 1));
+    const bottomRadiusFactor = turnRadiusFactor * (1 + tiltUpDistance * (HEAD_TILT_RADIUS_GROW - 1));
+    const radiusShorthand = (baseR: number) =>
+      `${baseR * topRadiusFactor}px ${baseR * topRadiusFactor}px ${baseR * bottomRadiusFactor}px ${baseR * bottomRadiusFactor}px`;
 
     const headBase = el.firstElementChild as HTMLElement | null;
     if (headBase) {
       headBase.style.width = `${baseW}px`;
+      headBase.style.height = `${baseH}px`;
       headBase.style.left = `${turnShift}px`;
-      headBase.style.borderRadius = `${(HEAD_ROUNDNESS + HEAD_OFFSET / 2) * scale * radiusFactor}px`;
+      headBase.style.top = `${tiltShift}px`;
+      headBase.style.borderRadius = radiusShorthand((HEAD_ROUNDNESS + HEAD_OFFSET / 2) * scale);
     }
 
     const headLight = el.children[1] as HTMLElement | null;
     if (headLight) {
       headLight.style.width = `${baseW - lightSideMargin * scale}px`;
+      headLight.style.height = `${baseH - lightVerticalMargin * scale}px`;
       headLight.style.left = `${turnShift + lightLeftInset * scale}px`;
-      headLight.style.borderRadius = `${HEAD_ROUNDNESS * scale * radiusFactor}px`;
+      headLight.style.top = `${tiltShift + lightTopInset * scale}px`;
+      headLight.style.borderRadius = radiusShorthand(HEAD_ROUNDNESS * scale);
     }
 
     const headMain = el.children[2] as HTMLElement | null;
     if (headMain) {
       headMain.style.width = `${baseW - mainSideMargin * scale}px`;
+      headMain.style.height = `${baseH - mainVerticalMargin * scale}px`;
       headMain.style.left = `${turnShift + mainLeftInset * scale}px`;
-      headMain.style.borderRadius = `${(HEAD_ROUNDNESS - HEAD_OFFSET * (1 - HEAD_FACE_INSET)) * scale * radiusFactor}px`;
+      headMain.style.top = `${tiltShift + mainTopInset * scale}px`;
+      headMain.style.borderRadius = radiusShorthand((HEAD_ROUNDNESS - HEAD_OFFSET * (1 - HEAD_FACE_INSET)) * scale);
     }
-
-    // head.tilt — PLACEHOLDER: linearly scales height with the value (0 → 50%, 1 → 150%).
-    // Replace with real up/down rendering.
-    const tilt = caps.get(HEAD_TILT_KEY) ?? 0.5;
-    el.style.height = `${(HEAD_H + HEAD_OFFSET) * scale * (0.5 + tilt)}px`;
   }, [scale]);
   useAnimationRenderer(render);
   return ref;
@@ -324,6 +436,25 @@ const HEAD_PIVOT_Y = (HEAD_H + HEAD_OFFSET) * 0.85;
 const HEAD_ROTATION = 0;
 const HEAD_TURN_RATIO = .72;
 const HEAD_TURN_RADIUS_RATIO = .75;
+// Tilting a rounded-box head (think: stylized robot) about a horizontal axis makes the
+// apparent silhouette slightly TALLER (the diagonal of a tilted box exceeds its straight-on
+// height) — HEAD_TILT_RATIO > 1 (grow). Bottom-anchored — chin stays attached to the body,
+// the crown extends upward. Border-radius is asymmetric: tilting down makes the TOP corners
+// grow (the back of the head is curving over into view), tilting up makes the BOTTOM corners
+// grow (mirror — underside of the chin curving forward). The unaffected side stays at rest.
+const HEAD_TILT_RATIO = 1.08;             // visible head HEIGHT fraction at full tilt (>1 = taller)
+const HEAD_TILT_RADIUS_GROW = 1.25;        // border-radius multiplier on the corners exposed by the tilt direction
+
+// head.tilt's input range [0, 1] is remapped to a narrower rendered range at read time. The
+// raw extremes push the geometry past where it looks good (eyes flatten too much, head growth
+// goes too far, antenna sinks unnaturally), so we compress what the value actually means in
+// rendering. External semantic is unchanged: animations and the slider still produce 0..1,
+// 0.5 is still neutral — the visual extremes are just softer. Apply `remapTilt(raw)` wherever
+// head.tilt is read from caps.
+const HEAD_TILT_RENDER_MIN = 0.3;
+const HEAD_TILT_RENDER_MAX = 0.7;
+const remapTilt = (raw: number) =>
+  HEAD_TILT_RENDER_MIN + raw * (HEAD_TILT_RENDER_MAX - HEAD_TILT_RENDER_MIN);
 
 function Head({
   scale = 1,
@@ -403,34 +534,107 @@ const EYE_TOP_RATIO = 0.55;
 const EYE_SIDE_RATIO = 0.24;
 const PUPIL_W = 8;
 const PUPIL_H = 20;
-const EYE_OFFSET = EYE_H - PUPIL_H;
+const EYE_OFFSET_V = EYE_H - PUPIL_H;   // constant top+bottom pupil margin (4px each side)
+const EYE_OFFSET_H = EYE_W - PUPIL_W;   // constant left+right pupil margin (4px each side)
 const MAX_BLINK_CLOSE = .84;
+const EYE_TURN_W_RATIO = 0.24;           // min eye-width fraction at full turn
+const EYE_TURN_SLIDE_GAZE = 30;         // base slide (unscaled px) both eyes get toward the gaze
+const EYE_TURN_SLIDE_CONVERGENCE = 24;  // extra slide each eye gets toward face center → far eye nets more travel
+const EYE_TILT_H_RATIO = 0.7;             // min eye-height fraction at full tilt — vertical analog of EYE_TURN_W_RATIO
+const EYE_TILT_PERSPECTIVE_POWER = 3;     // ease-in power for height shrink — 2 = gentle, 3 = aggressive (action concentrated at extremes)
+const EYE_TILT_SLIDE_UP = 58;             // vertical slide (unscaled px) when tilt > 0.5 — eyes slide up by this much at tilt=1
+const EYE_TILT_SLIDE_DOWN = 28;           // vertical slide (unscaled px) when tilt < 0.5 — eyes slide down by this much at tilt=0
 
-function useBlinkRef(scale: number) {
+// Shared eye renderer. Handles both eyes.blink (vertical) and head.turn (horizontal)
+// in a single tick, on the same element + pupil child. `side` is the CSS property
+// the eye is positioned with ("left" for LeftEye, "right" for RightEye).
+function useEyeRefShared(scale: number, side: "left" | "right") {
   const ref = useRef<HTMLDivElement>(null);
   const render = useCallback((caps: ReadonlyMap<string, number>) => {
     const el = ref.current;
     if (!el) return;
     const blink = caps.get(BLINK_KEY) ?? 1;
-    el.style.height = `${(blink * MAX_BLINK_CLOSE + (1 - MAX_BLINK_CLOSE)) * EYE_H * scale}px`;
-    el.style.top = `${(HEAD_H * EYE_TOP_RATIO + ((1 - blink) * (EYE_H / 2) * MAX_BLINK_CLOSE)) * scale}px`;
+    const turn = caps.get(HEAD_TURN_KEY) ?? 0.5;
+    const tilt = remapTilt(caps.get(HEAD_TILT_KEY) ?? 0.5);
+
+    // ==== VERTICAL: eyes.blink × head.tilt ====
+    // Height is the product of two independent shrink factors (multiplicative compounding) —
+    // a half-blink during a full tilt produces a thinner eye than either alone, naturally.
+    // Top is the sum of three vertical offsets, applied in order: head-face tracking (eye
+    // follows the foreshortened head face down toward the chin); a kinematic gaze slide
+    // (ease-out-quad, moves the eye up at tilt=1 / down at tilt=0); and a centering shift that
+    // keeps the eye anchored on its rest centerline as it shrinks vertically.
+    const blinkHeightFactor = blink * MAX_BLINK_CLOSE + (1 - MAX_BLINK_CLOSE);
+
+    const signedTiltDistance = (tilt - 0.5) * 2;
+    const tiltDistance = Math.abs(signedTiltDistance);
+    const easedTiltGaze = 1 - (1 - tiltDistance) * (1 - tiltDistance);
+    const easedTiltGazeSigned = Math.sign(signedTiltDistance) * easedTiltGaze;
+    const easedTiltPerspective = Math.pow(tiltDistance, EYE_TILT_PERSPECTIVE_POWER);
+    const tiltHeightFactor = 1 - easedTiltPerspective * (1 - EYE_TILT_H_RATIO);
+    // Linear factor — must match the head shape rendering in useHeadRef so the eye tracks the
+    // visible face exactly, not on the eye's own perspective curve.
+    const headTiltFactor = (1 - HEAD_TILT_RATIO) * (1 - tiltDistance) + HEAD_TILT_RATIO;
+
+    const eyeH = EYE_H * blinkHeightFactor * tiltHeightFactor;
+    const heightShrink = EYE_H - eyeH;
+    const eyeFaceTrackY = (HEAD_H + HEAD_OFFSET) * (1 - headTiltFactor) + HEAD_H * EYE_TOP_RATIO * headTiltFactor;
+    // Pick the slide magnitude based on tilt direction so up/down can be tuned independently.
+    const tiltSlideMagnitude = signedTiltDistance >= 0 ? EYE_TILT_SLIDE_UP : EYE_TILT_SLIDE_DOWN;
+    const tiltGazeShift = -easedTiltGazeSigned * tiltSlideMagnitude;  // negative because tilt=1 = up = top decreases
+
+    el.style.height = `${eyeH * scale}px`;
+    el.style.top = `${(eyeFaceTrackY + tiltGazeShift + heightShrink / 2) * scale}px`;
+
+    // ==== HORIZONTAL: head.turn ====
+    // Two conceptually different motions, two different curves.
+    // GAZE slide (kinematic — eyes tracking with the head's rotation): ease-out-quad. Fast off
+    // neutral so both eyes commit to the gaze direction together. Both eyes share this term, so
+    // they start a turn at identical velocity in the same direction.
+    // PERSPECTIVE effects — width foreshortening AND spacing convergence (the differentiation
+    // between near and far eye): ease-in-quad. Derivative is 0 at neutral, so neither effect
+    // is active at the start of a turn; both ramp up as the head commits.
+    const signedTurnDistance = (turn - 0.5) * 2;
+    const turnDistance = Math.abs(signedTurnDistance);
+    const easedTurnGaze = 1 - (1 - turnDistance) * (1 - turnDistance);
+    const easedTurnGazeSigned = Math.sign(signedTurnDistance) * easedTurnGaze;
+    const easedTurnPerspective = turnDistance * turnDistance;
+    const eyeW = EYE_W * (1 - easedTurnPerspective * (1 - EYE_TURN_W_RATIO));
+    const widthShrink = EYE_W - eyeW;
+    const isLeft = side === "left";
+    const screenDx =
+      easedTurnGazeSigned * EYE_TURN_SLIDE_GAZE +
+      (isLeft ? 1 : -1) * easedTurnPerspective * EYE_TURN_SLIDE_CONVERGENCE;
+    const cssOffset =
+      HEAD_W * EYE_SIDE_RATIO +
+      widthShrink / 2 +
+      (isLeft ? screenDx : -screenDx);
+    el.style.width = `${eyeW * scale}px`;
+    el.style[side] = `${cssOffset * scale}px`;
+
+    // Pupil — constant-margin trick on both axes. `left` and `top` in initial styles are never
+    // overwritten, so the 4px margin holds automatically as the parent shrinks. eyeH/eyeW already
+    // incorporate all combined shrinks above.
     const pupil = el.firstElementChild as HTMLElement | null;
-    if (pupil) pupil.style.height = `${Math.max(0, (blink * MAX_BLINK_CLOSE + (1 - MAX_BLINK_CLOSE)) * EYE_H - EYE_OFFSET) * scale}px`;
-  }, [scale]);
+    if (pupil) {
+      pupil.style.height = `${Math.max(0, eyeH - EYE_OFFSET_V) * scale}px`;
+      pupil.style.width = `${Math.max(0, eyeW - EYE_OFFSET_H) * scale}px`;
+    }
+  }, [scale, side]);
   useAnimationRenderer(render);
   return ref;
 }
 
 function LeftEye({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
   const s = (v: number) => v * scale;
-  const eyeRef = useBlinkRef(scale);
+  const eyeRef = useEyeRefShared(scale, "left");
 
   return (
     <div
       ref={eyeRef}
       style={{
         position: "absolute",
-        zIndex: 3,
+        zIndex: 5,
         top: s(HEAD_H * EYE_TOP_RATIO),
         left: s(HEAD_W * EYE_SIDE_RATIO),
         width: s(EYE_W),
@@ -456,14 +660,14 @@ function LeftEye({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
 
 function RightEye({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
   const s = (v: number) => v * scale;
-  const eyeRef = useBlinkRef(scale);
+  const eyeRef = useEyeRefShared(scale, "right");
 
   return (
     <div
       ref={eyeRef}
       style={{
         position: "absolute",
-        zIndex: 3,
+        zIndex: 5,
         top: s(HEAD_H * EYE_TOP_RATIO),
         right: s(HEAD_W * EYE_SIDE_RATIO),
         width: s(EYE_W),
@@ -495,6 +699,7 @@ const EAR_RADIUS_RATIO = 0.4;             // borderRadius = current width × thi
 const EAR_TURN_INWARD_RATIO = 0.25;       // how far inward the ear slides on a full turn (fraction of HEAD_W)
 const EAR_HIDE_RATE = 3;                  // how quickly the ear disappears (higher = faster)
 const EAR_HIDE_MIN_W = HEAD_OFFSET / 3;   // keep some width when fully hidden — smaller than outline so it stays masked
+const EAR_TILT_SLIDE = 8;                 // vertical slide on full tilt (unscaled px) — ear slides with the gaze direction, no size change
 
 // Shared shape math — `side` is the "left" or "right" CSS property name.
 function useEarRefShared(scale: number, side: "left" | "right", hideWhenTurnGreater: boolean) {
@@ -503,6 +708,7 @@ function useEarRefShared(scale: number, side: "left" | "right", hideWhenTurnGrea
     const el = ref.current;
     if (!el) return;
     const turn = caps.get(HEAD_TURN_KEY) ?? 0.5;
+    const tilt = remapTilt(caps.get(HEAD_TILT_KEY) ?? 0.5);
     const restOffset = -EAR_REST_OFFSET;
     const restRightEdge = restOffset + EAR_REST_W;
 
@@ -532,6 +738,11 @@ function useEarRefShared(scale: number, side: "left" | "right", hideWhenTurnGrea
     el.style.borderRadius = `${w * EAR_RADIUS_RATIO * scale}px`;
     // Above the head face so the ear is visible once it slides onto the head.
     el.style.zIndex = "4";
+
+    // head.tilt — small vertical slide in the gaze direction. No size change, no horizontal
+    // change. tilt=1 (look up) → slide up (top decreases); tilt=0 (look down) → slide down.
+    const tiltSlide = -(tilt - 0.5) * 2 * EAR_TILT_SLIDE;
+    el.style.top = `${(HEAD_H * EAR_TOP_RATIO + tiltSlide) * scale}px`;
   }, [scale, side, hideWhenTurnGreater]);
   useAnimationRenderer(render);
   return ref;
@@ -604,6 +815,11 @@ const ANTENNA_RIGHT = 18;
 const ANTENNA_RADIUS = 3;
 const ANTENNA_ANGLE = -15;
 const ANTENNA_TURN_ANGLE_DELTA = 8;
+const ANTENNA_TILT_H_RATIO = 0.5;             // height fraction at full tilt — perspective foreshortening of the antenna stick
+const ANTENNA_TILT_SLIDE = 18;                 // vertical slide (unscaled px) of the WHOLE antenna at full tilt — base sinks down too
+const ANTENNA_TILT_Z_FRONT = 6;               // z-index when looking down (antenna swings toward viewer, in front of head)
+const ANTENNA_TILT_Z_BEHIND = -1;             // z-index when looking up (antenna falls behind head outline)
+const ANTENNA_WIGGLE_AMPLITUDE_DEG = 25;      // max wiggle rotation offset at antenna.wiggle = 0 or 1 (added to the existing turn-driven angle)
 
 function useAntennaRef(scale: number) {
   const ref = useRef<HTMLDivElement>(null);
@@ -611,13 +827,33 @@ function useAntennaRef(scale: number) {
     const el = ref.current;
     if (!el) return;
     const turn = caps.get(HEAD_TURN_KEY) ?? 0.5;
+    const tilt = remapTilt(caps.get(HEAD_TILT_KEY) ?? 0.5);
 
-    // Position: stay glued to the visible head's right edge as it turns.
+    // Position: stay glued to the visible head's right edge as it turns AND track the head's
+    // top edge as it foreshortens vertically on tilt (antenna sits on the crown).
     const turnFactor = (1 - HEAD_TURN_RATIO) * 2 * (.5 - Math.abs(turn - .5)) + HEAD_TURN_RATIO;
     const turnShift = (HEAD_W + HEAD_OFFSET) * Math.abs(turn - .5) * (1 - HEAD_TURN_RATIO);
     const baseW = (HEAD_W + HEAD_OFFSET) * turnFactor;
     const restAntennaRight = HEAD_OFFSET / 2 + ANTENNA_RIGHT;
     el.style.right = `${((HEAD_W + HEAD_OFFSET) + restAntennaRight - turnShift - baseW) * scale}px`;
+
+    // head.tilt — three effects on the antenna:
+    //   1. foreshortening (height shrinks) — the stick compresses out of the picture plane.
+    //   2. whole-antenna slide DOWN — the base sinks toward the head as the crown rotates
+    //      out of view. Symmetric at both extremes.
+    //   3. z-index switch — looking down puts the antenna in front of the head; looking up
+    //      swings it behind the head outline.
+    // The shrink (1) is bottom-anchored relative to the antenna itself, so its top moves down.
+    // The slide (2) adds an additional drop to BOTH ends. Net result at extreme: top moves down
+    // by shrink + slide; base moves down by slide.
+    const tiltDistance = Math.abs(tilt - 0.5) * 2;
+    const antennaHFactor = 1 - tiltDistance * (1 - ANTENNA_TILT_H_RATIO);
+    const antennaH = ANTENNA_H * antennaHFactor;
+    const antennaShrink = ANTENNA_H - antennaH;
+    const antennaTiltSlide = tiltDistance * ANTENNA_TILT_SLIDE;
+    el.style.height = `${antennaH * scale}px`;
+    el.style.top = `${(ANTENNA_TOP + antennaShrink + antennaTiltSlide) * scale}px`;
+    el.style.zIndex = `${tilt < 0.5 ? ANTENNA_TILT_Z_FRONT : ANTENNA_TILT_Z_BEHIND}`;
 
     // Angle: rest lean fades out toward the extremes, replaced by a signed offset
     // pointing in the head's gaze direction (forward lean).
@@ -626,7 +862,12 @@ function useAntennaRef(scale: number) {
     // turn=0   → -ANTENNA_TURN_ANGLE_DELTA → tilts left (with the gaze).
     const distance = Math.abs(turn - 0.5) * 2;
     const signedOffset = (turn - 0.5) * 2 * ANTENNA_TURN_ANGLE_DELTA;
-    el.style.transform = `rotate(${ANTENNA_ANGLE * (1 - distance) + signedOffset}deg)`;
+    // antenna.wiggle adds an extra rotation offset around the same bottom-center pivot.
+    // Composes additively with the turn-driven angle so they can both apply at the same time
+    // without interfering — head turning AND antenna wiggling render correctly together.
+    const wiggle = caps.get(ANTENNA_WIGGLE_KEY) ?? 0.5;
+    const wiggleAngle = (wiggle - 0.5) * 2 * ANTENNA_WIGGLE_AMPLITUDE_DEG;
+    el.style.transform = `rotate(${ANTENNA_ANGLE * (1 - distance) + signedOffset + wiggleAngle}deg)`;
   }, [scale]);
   useAnimationRenderer(render);
   return ref;
@@ -669,11 +910,54 @@ const RIGHT_UPPER_ANGLE = -25;
 const LEFT_LOWER_ANGLE = -15;
 const RIGHT_LOWER_ANGLE = 15;
 
+// Target angles for the LeftArm at arms.left.raise = 1. Interpolated linearly from the rest
+// angles above. Tuned for a "stop" gesture: upper arm rotated up-and-outward, lower arm bent
+// at the elbow so the forearm is roughly vertical and the hand sits at face level.
+const LEFT_UPPER_RAISED_ANGLE = 45;
+const LEFT_LOWER_RAISED_ANGLE = 130;
+
+// Single shared renderer for both layers (outer outline + inner face) of the left arm. The
+// wrapper div carries the ref; the renderer walks its children and sets each upper's transform
+// plus the corresponding lower's transform (the lower is the upper's firstElementChild — both
+// layers have the lower as their first child even when showAnchor adds a sibling PivotMarker).
+function useLeftArmRef(scale: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const render = useCallback(
+    (caps: ReadonlyMap<string, number>) => {
+      const el = ref.current;
+      if (!el) return;
+      const raise = caps.get(ARMS_LEFT_RAISE_KEY) ?? 0;
+      const upperAngle = LEFT_UPPER_ANGLE + raise * (LEFT_UPPER_RAISED_ANGLE - LEFT_UPPER_ANGLE);
+      const lowerAngle = LEFT_LOWER_ANGLE + raise * (LEFT_LOWER_RAISED_ANGLE - LEFT_LOWER_ANGLE);
+      for (let i = 0; i < el.children.length; i++) {
+        const upper = el.children[i] as HTMLElement;
+        upper.style.transform = `rotate(${upperAngle}deg)`;
+        const lower = upper.firstElementChild as HTMLElement | null;
+        if (lower) lower.style.transform = `rotate(${lowerAngle}deg)`;
+      }
+    },
+    [scale],
+  );
+  useAnimationRenderer(render);
+  return ref;
+}
+
 function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; theme: ColorTheme; showAnchor?: boolean }) {
   const s = (v: number) => v * scale;
+  const armRef = useLeftArmRef(scale);
 
   return (
-    <>
+    <div
+      ref={armRef}
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: 0,
+        height: 0,
+        overflow: "visible",
+      }}
+    >
       <div
         style={{
           position: "absolute",
@@ -737,7 +1021,7 @@ function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; them
         </div>
         {showAnchor && <PivotMarker scale={scale} x={(ARM_UPPER_W - ARM_OFFSET) / 2} y={(ARM_UPPER_W - ARM_OFFSET) / 2} />}
       </div>
-    </>
+    </div>
   );
 }
 
