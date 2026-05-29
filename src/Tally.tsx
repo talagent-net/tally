@@ -21,19 +21,33 @@ const BODY_TURN_KEY = "body.turn";
 // to. body.bounce (vertical step bounce) and body.lean (lean into the travel direction) are normal
 // transient gait capabilities that reset to rest when a walk ends.
 const BODY_X_KEY = "body.x";
+const BODY_Y_KEY = "body.y"; // net vertical position (scaled px) on the locomotion wrapper — the drop free-fall descent
 const BODY_BOUNCE_KEY = "body.bounce";
 const BODY_LEAN_KEY = "body.lean";
-const LEGS_SWING_KEY = "legs.swing";
-const ARMS_SWING_KEY = "arms.swing";
+const LEGS_STRIDE_KEY = "legs.stride";
+const ARMS_STRIDE_KEY = "arms.stride";
+// Per-limb frantic-flail capabilities (drop free-fall). Independent per limb — they break the
+// stride mirror-lock so each limb thrashes on its own chaotic signal. Rest 0.5 = neutral.
+const ARMS_LEFT_FLAIL_KEY = "arms.left.flail";
+const ARMS_RIGHT_FLAIL_KEY = "arms.right.flail";
+const LEGS_LEFT_FLAIL_KEY = "legs.left.flail";
+const LEGS_RIGHT_FLAIL_KEY = "legs.right.flail";
+// body.crouch — 0 = standing (rest), 1 = full crouch: the body foreshortens vertically and sinks
+// (tilting forward toward camera); the shoulders and head lower to track it.
+const BODY_CROUCH_KEY = "body.crouch";
 const MAX_HEAD_BOB_DEGREES = 18;
 
 // Render-side magnitudes for the gait capabilities (normalized value → px / degrees), mirroring
 // how head.tilt etc. keep their pixel/degree tuning at the read site.
 const BODY_BOUNCE_PX = 7;      // peak vertical lift at body.bounce = 1 (unscaled px)
 const BODY_LEAN_DEG = 7;    // peak lean at body.lean extremes (degrees), signed around 0.5
-const LEG_SWING_DEG = 40;   // peak leg rotation at legs.swing extremes (degrees), anti-phase across legs
-const ARM_SWING_DEG = 22;   // peak arm rotation at arms.swing extremes (degrees), anti-phase across arms & counter to legs
+const LEG_STRIDE_DEG = 40;   // peak leg rotation at legs.stride extremes (degrees), anti-phase across legs
+const ARM_STRIDE_DEG = 22;   // peak arm rotation at arms.stride extremes (degrees), anti-phase across arms & counter to legs
 const HAND_WAVE_DEG = 25;   // peak forearm rotation at arms.left.wave extremes (degrees) — the disagree hand-wave
+// Per-limb flail rotation amplitude (degrees), symmetric ± around the limb's rest pose. The cap
+// drives (cap-0.5)*2*DEG, so the flail neutral (0.5) = 0 → limbs sit at rest when idle/hangout.
+const LEG_FLAIL_DEG = 55;
+const ARM_FLAIL_DEG = 55;
 
 // head.tilt, head.turn, and body.turn all squash the head's geometry — head.tilt on the
 // vertical axis, head.turn and body.turn (via the effective-head-turn sum) on the horizontal.
@@ -115,10 +129,16 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   useCapability(ANTENNA_WIGGLE_KEY, 0.5); // 0.5 = no wiggle; 0/1 = max wiggle in either direction
   useCapability(BODY_TURN_KEY, 0.5); // 0.5 = facing forward; 0/1 = max body turn either way (head follows by default)
   useCapability(BODY_X_KEY, 0);      // net horizontal position in scaled px — persistent across actions
+  useCapability(BODY_Y_KEY, 0);      // vertical position in scaled px — the drop free-fall descent (0 = anchor)
   useCapability(BODY_BOUNCE_KEY, 0);    // 0 = grounded; 1 = peak of a walk step bounce
   useCapability(BODY_LEAN_KEY, 0.5); // 0.5 = upright; 0/1 = lean left/right into travel
-  useCapability(LEGS_SWING_KEY, 0.5);// 0.5 = neutral stance; 0/1 = legs at opposite ends of a step (anti-phase)
-  useCapability(ARMS_SWING_KEY, 0.5);// 0.5 = arms at rest; 0/1 = arms at opposite ends of a swing (anti-phase, counter to legs)
+  useCapability(LEGS_STRIDE_KEY, 0.5);// 0.5 = neutral stance; 0/1 = legs at opposite ends of a step (anti-phase)
+  useCapability(ARMS_STRIDE_KEY, 0.5);// 0.5 = arms at rest; 0/1 = arms at opposite ends of a swing (anti-phase, counter to legs)
+  useCapability(ARMS_LEFT_FLAIL_KEY, 0.5);  // 0.5 = neutral; per-arm frantic free-fall thrash (raw chaotic)
+  useCapability(ARMS_RIGHT_FLAIL_KEY, 0.5);
+  useCapability(LEGS_LEFT_FLAIL_KEY, 0.5);  // per-leg frantic free-fall thrash (raw chaotic)
+  useCapability(LEGS_RIGHT_FLAIL_KEY, 0.5);
+  useCapability(BODY_CROUCH_KEY, 0); // 0 = standing; 1 = full crouch (body foreshortens + sinks, head/shoulders follow)
 
   // head.tilt vs head.turn — the engine will smoothly unwind one when the other gets engaged.
   useConflict(HEAD_AXIS_CONFLICT);
@@ -126,7 +146,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   // Debug overrides — a map of capability key → held value. Each listed capability is driven by
   // its value (read live via a ref so closures stay stable), independently of the others, so
   // several non-conflicting capabilities can be pinned at once (e.g. hold body.turn sideways
-  // while scrubbing legs.swing). Order in the useMemos below: action > debug override > mode
+  // while scrubbing legs.stride). Order in the useMemos below: action > debug override > mode
   // default. A key absent from the map makes debugAnimFor return null, so its mode default applies.
   // Written during render (not in an effect) on purpose: debugAnimFor recomputes when the key
   // SET changes and reads this ref to decide whether to install a capability's animation. If the
@@ -157,6 +177,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     rampStartMs: number;
     rampEndMs: number;
     accelMs: number;
+    arrive: boolean; // come: slide from the offset INTO the anchor (offset→0) instead of 0→delta
   } | null>(null);
   // Stable closure so the engine installs it exactly once and never unwinds it (unlike the gait
   // capabilities, body.x must not reset to rest).
@@ -202,9 +223,28 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
       }
       stride = w.delta * (s / denom);
     }
-    return committedXRef.current + stride;
+    // walk: body.x runs committed → committed+delta (and commits delta on completion).
+    // come (arrive): body.x runs committed-delta (the offset) → committed, ending at the anchor;
+    // committed is never changed, so it's a pure transient — no snap when the stride clears.
+    return committedXRef.current + (w.arrive ? stride - w.delta : stride);
   });
   useCapabilityAnimation(BODY_X_KEY, bodyXAnimRef.current);
+
+  // Vertical free-fall (drop). Mirror of body.x but transient: Tally starts `offset` px above the
+  // anchor and falls to it with a GRAVITY profile — position = -offset·(1 − (t/fallMs)²), so the
+  // speed ramps up (no decel) and stops hard at the anchor (the landing crouch absorbs it). body.y
+  // rests at 0 (anchor) whenever no fall is in progress; the action never commits any net offset.
+  const fallStateRef = useRef<{ startElapsed: number | null; offset: number; fallMs: number } | null>(null);
+  const bodyYAnimRef = useRef<AnimationFn>((elapsed) => {
+    const f = fallStateRef.current;
+    if (!f) return 0;
+    if (f.startElapsed === null) f.startElapsed = elapsed;
+    const t = elapsed - f.startElapsed;
+    if (t >= f.fallMs) return 0; // landed on the anchor
+    const p = t / f.fallMs;
+    return -f.offset * (1 - p * p); // accelerating descent from -offset (above) to 0
+  });
+  useCapabilityAnimation(BODY_Y_KEY, bodyYAnimRef.current);
   const locomotionRef = useLocomotionRef();
 
   // Action lifecycle. An active action plays to completion and is NOT interruptible. A trigger
@@ -247,20 +287,29 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   );
   useEffect(() => {
     if (!activeAction) return;
-    // Locomotion actions arm the persistent body.x stride and commit their net move on completion.
+    // Locomotion actions arm the persistent body.x stride. walk commits its net move on
+    // completion; come (arrive) ends at the anchor, so it commits nothing.
     let walkDelta = 0;
+    const arrive = activeAction.locomotion?.arrive ?? false;
     if (activeAction.locomotion) {
       const { direction, travelBodyWidths, rampStartMs, rampEndMs, accelMs } = activeAction.locomotion;
       const sign = direction === "right" ? 1 : -1;
       walkDelta = sign * travelBodyWidths * BODY_W * scale;
-      walkStateRef.current = { startElapsed: null, delta: walkDelta, rampStartMs, rampEndMs, accelMs };
+      walkStateRef.current = { startElapsed: null, delta: walkDelta, rampStartMs, rampEndMs, accelMs, arrive };
+    }
+    // drop: arm the vertical free-fall (transient; lands on the anchor, commits nothing).
+    if (activeAction.descent) {
+      const { offsetBodyWidths, fallMs } = activeAction.descent;
+      fallStateRef.current = { startElapsed: null, offset: offsetBodyWidths * BODY_W * scale, fallMs };
     }
     const timer = setTimeout(() => {
       if (activeAction.locomotion) {
-        committedXRef.current += walkDelta;
+        if (!arrive) committedXRef.current += walkDelta; // come returns to the anchor — no net commit
         walkStateRef.current = null;
-        onWalkComplete?.(walkDelta);
+        onWalkComplete?.(arrive ? 0 : walkDelta);
       }
+      if (activeAction.descent) fallStateRef.current = null; // back at the anchor
+
       // Dequeue: play the queued action next if present, otherwise go idle.
       const next = queuedActionSpecRef.current;
       queuedActionSpecRef.current = null;
@@ -335,17 +384,34 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   }, [activeAction, debugAnimFor]);
   useCapabilityAnimation(BODY_LEAN_KEY, bodyLeanAnimation);
 
-  const legsSwingAnimation = useMemo(() => {
-    if (activeAction?.animations[LEGS_SWING_KEY]) return activeAction.animations[LEGS_SWING_KEY];
-    return debugAnimFor(LEGS_SWING_KEY);
+  const legsStrideAnimation = useMemo(() => {
+    if (activeAction?.animations[LEGS_STRIDE_KEY]) return activeAction.animations[LEGS_STRIDE_KEY];
+    return debugAnimFor(LEGS_STRIDE_KEY);
   }, [activeAction, debugAnimFor]);
-  useCapabilityAnimation(LEGS_SWING_KEY, legsSwingAnimation);
+  useCapabilityAnimation(LEGS_STRIDE_KEY, legsStrideAnimation);
 
-  const armsSwingAnimation = useMemo(() => {
-    if (activeAction?.animations[ARMS_SWING_KEY]) return activeAction.animations[ARMS_SWING_KEY];
-    return debugAnimFor(ARMS_SWING_KEY);
+  const armsStrideAnimation = useMemo(() => {
+    if (activeAction?.animations[ARMS_STRIDE_KEY]) return activeAction.animations[ARMS_STRIDE_KEY];
+    return debugAnimFor(ARMS_STRIDE_KEY);
   }, [activeAction, debugAnimFor]);
-  useCapabilityAnimation(ARMS_SWING_KEY, armsSwingAnimation);
+  useCapabilityAnimation(ARMS_STRIDE_KEY, armsStrideAnimation);
+
+  // Per-limb flail (drop) — action > debug. Four independent capabilities.
+  const armsLeftFlailAnimation = useMemo(() => activeAction?.animations[ARMS_LEFT_FLAIL_KEY] ?? debugAnimFor(ARMS_LEFT_FLAIL_KEY), [activeAction, debugAnimFor]);
+  useCapabilityAnimation(ARMS_LEFT_FLAIL_KEY, armsLeftFlailAnimation);
+  const armsRightFlailAnimation = useMemo(() => activeAction?.animations[ARMS_RIGHT_FLAIL_KEY] ?? debugAnimFor(ARMS_RIGHT_FLAIL_KEY), [activeAction, debugAnimFor]);
+  useCapabilityAnimation(ARMS_RIGHT_FLAIL_KEY, armsRightFlailAnimation);
+  const legsLeftFlailAnimation = useMemo(() => activeAction?.animations[LEGS_LEFT_FLAIL_KEY] ?? debugAnimFor(LEGS_LEFT_FLAIL_KEY), [activeAction, debugAnimFor]);
+  useCapabilityAnimation(LEGS_LEFT_FLAIL_KEY, legsLeftFlailAnimation);
+  const legsRightFlailAnimation = useMemo(() => activeAction?.animations[LEGS_RIGHT_FLAIL_KEY] ?? debugAnimFor(LEGS_RIGHT_FLAIL_KEY), [activeAction, debugAnimFor]);
+  useCapabilityAnimation(LEGS_RIGHT_FLAIL_KEY, legsRightFlailAnimation);
+
+  // body.crouch — action > debug. No mode-level idle; no action drives it yet (debug-scrubbable).
+  const bodyCrouchAnimation = useMemo(() => {
+    if (activeAction?.animations[BODY_CROUCH_KEY]) return activeAction.animations[BODY_CROUCH_KEY];
+    return debugAnimFor(BODY_CROUCH_KEY);
+  }, [activeAction, debugAnimFor]);
+  useCapabilityAnimation(BODY_CROUCH_KEY, bodyCrouchAnimation);
 
   const headBobAnimation = useMemo(() => {
     if (activeAction?.animations[HEAD_BOB_KEY]) return activeAction.animations[HEAD_BOB_KEY];
@@ -445,7 +511,21 @@ const CHEST_SIZE = 30;             // square — single dimension for both width
 const CHEST_TOP_RATIO = 0.25;
 const CHEST_TURN_MIN_RATIO = 0.15;  // chest width fraction at full body turn — foreshortens more aggressively than the body face, since the logo is a forward-facing decal and largely disappears in profile
 const CHEST_TURN_SLIDE = 16;        // unscaled px the chest slides horizontally at full body turn — same direction as the turn
+const CHEST_CROUCH_MIN_RATIO = 0.6; // chest HEIGHT fraction at full crouch — vertical foreshorten (the body.crouch analog of CHEST_TURN_MIN_RATIO for width)
+const CHEST_CROUCH_RISE = 1;        // unscaled px the chest logo slides UP at full crouch (on top of its torso-tracking drop)
 const BODY_TURN_RATIO = .84;  // visible body WIDTH fraction at full body turn — matches HEAD_TURN_RATIO for now
+
+// body.crouch tuning. The body face shrinks vertically to CROUCH_HEIGHT_RATIO at full crouch
+// (bottom-anchored — the hips stay, the top/shoulders come down) and the whole body sinks by
+// CROUCH_DROP. Shoulders, head and chest track this via crouchPointDrop.
+const CROUCH_HEIGHT_RATIO = 0.7;   // body vertical scale at full crouch (foreshorten)
+const CROUCH_DROP = 10;            // unscaled px the body sinks (hips lower) at full crouch
+const crouchHeightFactor = (crouch: number) => 1 - crouch * (1 - CROUCH_HEIGHT_RATIO);
+// Unscaled px a body-fixed point lowers at the given crouch, by its vertical fraction from the top
+// (0 = top edge / shoulders, 1 = bottom edge / hips). The bottom-anchored shrink lowers upper
+// points more; the sink (CROUCH_DROP) lowers everything equally.
+const crouchPointDrop = (crouch: number, pFromTop: number) =>
+  (BODY_H + BODY_OFFSET) * (1 - crouchHeightFactor(crouch)) * (1 - pFromTop) + crouch * CROUCH_DROP;
 
 // Drives two body.turn effects on the chest: width shrinks linearly toward CHEST_TURN_MIN_RATIO,
 // and the whole element slides horizontally in the SIGNED direction of the turn. The chest div
@@ -463,7 +543,17 @@ function useChestRef(scale: number) {
       const factor = 1 - distance * (1 - CHEST_TURN_MIN_RATIO);
       el.style.width = `${CHEST_SIZE * scale * factor}px`;
       const slideOffset = signedDistance * CHEST_TURN_SLIDE * scale;
-      el.style.transform = `translateX(calc(-50% + ${slideOffset}px))`;
+      // body.crouch — compress the logo VERTICALLY (perspective foreshorten, the vertical analog
+      // of the body.turn width squash) and lower it so it tracks its spot on the sinking torso.
+      const crouch = caps.get(BODY_CROUCH_KEY) ?? 0;
+      const vFactor = 1 - crouch * (1 - CHEST_CROUCH_MIN_RATIO);
+      const chestH = CHEST_SIZE * scale * vFactor;
+      el.style.height = `${chestH}px`;
+      // The div is top-anchored, so add half the height loss to keep the logo centered on its spot;
+      // then slide it slightly UP (CHEST_CROUCH_RISE, negative) as it compresses.
+      const crouchDrop = crouchPointDrop(crouch, CHEST_TOP_RATIO) * scale + (CHEST_SIZE * scale - chestH) / 2
+        - crouch * CHEST_CROUCH_RISE * scale;
+      el.style.transform = `translateX(calc(-50% + ${slideOffset}px)) translateY(${crouchDrop}px)`;
     },
     [scale],
   );
@@ -493,15 +583,30 @@ function useBodyRef(scale: number) {
       const mainW = shadowW - BODY_OFFSET * scale;
       const mainLeft = shadowLeft + (BODY_OFFSET / 2) * scale;
 
+      // body.crouch — shrink the body face vertically (bottom-anchored: bottom edge stays, top
+      // comes down) and sink the whole face. Main face keeps a constant BODY_OFFSET/2 inset from
+      // the shadow on every side, so the outline thickness stays uniform (mirrors the width logic).
+      const crouch = caps.get(BODY_CROUCH_KEY) ?? 0;
+      const cf = crouchHeightFactor(crouch);
+      const fullH = (BODY_H + BODY_OFFSET) * scale;
+      const shadowH = fullH * cf;
+      const shadowTop = (fullH - shadowH) + crouch * CROUCH_DROP * scale; // bottom-anchored shrink, then sink
+      const mainH = shadowH - BODY_OFFSET * scale;
+      const mainTop = shadowTop + (BODY_OFFSET / 2) * scale;
+
       const shadow = el.firstElementChild as HTMLElement | null;
       if (shadow) {
         shadow.style.width = `${shadowW}px`;
         shadow.style.left = `${shadowLeft}px`;
+        shadow.style.height = `${shadowH}px`;
+        shadow.style.top = `${shadowTop}px`;
       }
       const mainFace = el.children[1] as HTMLElement | null;
       if (mainFace) {
         mainFace.style.width = `${mainW}px`;
         mainFace.style.left = `${mainLeft}px`;
+        mainFace.style.height = `${mainH}px`;
+        mainFace.style.top = `${mainTop}px`;
       }
 
       // Walk gait — vertical step bounce (body.bounce) and lean into the travel direction
@@ -518,15 +623,15 @@ function useBodyRef(scale: number) {
   return ref;
 }
 
-// Wraps Body + Shadow and slides the whole figure horizontally by body.x (scaled px). The
-// wrapper is a zero-size box at the figure's origin, so its children keep their existing
-// absolute positioning; only the translate moves. This is what persists a walk's displacement.
+// Wraps Body + Shadow and slides the whole figure by body.x (horizontal, walk/come) and body.y
+// (vertical, drop free-fall), both in scaled px. The wrapper is a zero-size box at the figure's
+// origin, so its children keep their existing absolute positioning; only the translate moves.
 function useLocomotionRef() {
   const ref = useRef<HTMLDivElement>(null);
   const render = useCallback((caps: ReadonlyMap<string, number>) => {
     const el = ref.current;
     if (!el) return;
-    el.style.transform = `translateX(${caps.get(BODY_X_KEY) ?? 0}px)`;
+    el.style.transform = `translate(${caps.get(BODY_X_KEY) ?? 0}px, ${caps.get(BODY_Y_KEY) ?? 0}px)`;
   }, []);
   useAnimationRenderer(render);
   return ref;
@@ -584,7 +689,7 @@ function Body({
       <div
         style={{
           position: "absolute",
-          zIndex: 3,
+          zIndex: 4, // above the arms (z3) so the arms never render in front of the torso
           top: s(BODY_OFFSET / 2),
           left: s(BODY_OFFSET / 2),
           width: s(BODY_W),
@@ -656,10 +761,13 @@ function useHeadRef(scale: number) {
     const el = ref.current;
     if (!el) return;
 
-    // head.bob — tilts the whole head left/right via rotation.
+    // head.bob — tilts the whole head left/right via rotation. body.crouch lowers the whole head
+    // (wrapper translateY) so it tracks the body's top dropping; applied here, NOT to the inner
+    // layers, so it composes cleanly with head.tilt (which shifts those layers vertically).
     const bob = caps.get(HEAD_BOB_KEY) ?? 0.5;
     const angle = (bob - 0.5) * 2 * MAX_HEAD_BOB_DEGREES;
-    el.style.transform = `translateX(-50%) rotate(${HEAD_ROTATION + angle}deg)`;
+    const crouchDrop = crouchPointDrop(caps.get(BODY_CROUCH_KEY) ?? 0, 0) * scale; // top-edge drop
+    el.style.transform = `translateX(-50%) translateY(${crouchDrop}px) rotate(${HEAD_ROTATION + angle}deg)`;
 
     // head.turn — horizontal foreshortening. Width shrinks symmetrically around the center.
     // Side outlines stay constant thickness because the inner divs use constant pixel insets
@@ -1231,6 +1339,10 @@ const LEFT_UPPER_ANGLE = 25;
 const RIGHT_UPPER_ANGLE = -25;
 const LEFT_LOWER_ANGLE = -15;
 const RIGHT_LOWER_ANGLE = 15;
+// body.crouch arm pose (degrees at full crouch, mirrored per side). Upper arms rotate further
+// OUTWARD so the elbows stick out; forearms rotate INWARD so the hands turn toward the feet.
+const CROUCH_UPPER_OUT_DEG = 20;
+const CROUCH_FOREARM_IN_DEG = 70;
 
 // Target angles for the LeftArm at arms.left.raise = 1. Interpolated linearly from the rest
 // angles above. Tuned for a "stop" gesture: upper arm rotated up-and-outward, lower arm bent
@@ -1242,7 +1354,7 @@ const LEFT_LOWER_RAISED_ANGLE = 130;
 // wrapper div carries the ref; the renderer walks its children and sets each upper's transform
 // plus the corresponding lower's transform (the lower is the upper's firstElementChild — both
 // layers have the lower as their first child even when showAnchor adds a sibling PivotMarker).
-// Drives: body.turn inward shift; arms.swing (rotate the whole arm from the shoulder, anti-phase
+// Drives: body.turn inward shift; arms.stride (rotate the whole arm from the shoulder, anti-phase
 // across the two arms and counter to the same-side leg — so left arm swings forward as left leg
 // goes back); and, left arm only, the arms.left.raise "stop" gesture composed on top.
 function useArmRef(scale: number, side: "left" | "right") {
@@ -1258,22 +1370,37 @@ function useArmRef(scale: number, side: "left" | "right") {
       const distance = Math.abs(bodyTurn - 0.5) * 2;
       el.style[side] = `${distance * SHOULDER_TURN_INWARD * scale}px`;
 
-      // arms.swing — rotate the upper arm about the shoulder. swingSign is the opposite of the
+      // body.crouch — lower the whole arm wrapper so the shoulder tracks its spot on the sinking
+      // body. (Position via the side edge above; vertical via transform — independent axes.)
+      const crouch = caps.get(BODY_CROUCH_KEY) ?? 0;
+      const crouchDrop = crouchPointDrop(crouch, ARM_SHOULDER_RATIO) * scale;
+      el.style.transform = `translateY(${crouchDrop}px)`;
+      // body.crouch arm pose: upper arm rotates OUTWARD (elbows out), forearm rotates INWARD
+      // (hands toward the feet). Mirrored per side — sign tracks each side's rest-angle direction.
+      const crouchUpperDelta = (isLeft ? 1 : -1) * crouch * CROUCH_UPPER_OUT_DEG;
+      const crouchLowerDelta = (isLeft ? -1 : 1) * crouch * CROUCH_FOREARM_IN_DEG;
+
+      // arms.stride — rotate the upper arm about the shoulder. swingSign is the opposite of the
       // same-side leg's (legs: left +1 / right -1) so each arm counter-swings its leg.
-      const swing = caps.get(ARMS_SWING_KEY) ?? 0.5;
+      const swing = caps.get(ARMS_STRIDE_KEY) ?? 0.5;
       const swingSign = isLeft ? -1 : 1;
-      const swingDelta = swingSign * (swing - 0.5) * 2 * ARM_SWING_DEG;
+      const swingDelta = swingSign * (swing - 0.5) * 2 * ARM_STRIDE_DEG;
+
+      // *.flail (drop) — per-arm thrash, independent per limb, symmetric ± around rest (neutral at
+      // cap 0.5 → arms rest in hangout). Mirrored per side so the two arms flail in opposite directions.
+      const armFlailCap = caps.get(isLeft ? ARMS_LEFT_FLAIL_KEY : ARMS_RIGHT_FLAIL_KEY) ?? 0.5;
+      const flailDelta = (isLeft ? 1 : -1) * (armFlailCap - 0.5) * 2 * ARM_FLAIL_DEG;
 
       // arms.left.raise — left arm only; the "stop" gesture composes on top of the rest pose.
       const raise = isLeft ? (caps.get(ARMS_LEFT_RAISE_KEY) ?? 0) : 0;
       const restUpper = isLeft ? LEFT_UPPER_ANGLE : RIGHT_UPPER_ANGLE;
       const restLower = isLeft ? LEFT_LOWER_ANGLE : RIGHT_LOWER_ANGLE;
-      const upperAngle = restUpper + raise * (LEFT_UPPER_RAISED_ANGLE - LEFT_UPPER_ANGLE) + swingDelta;
+      const upperAngle = restUpper + raise * (LEFT_UPPER_RAISED_ANGLE - LEFT_UPPER_ANGLE) + swingDelta + crouchUpperDelta + flailDelta;
       // arms.left.wave — left arm only; rotates the FOREARM about the elbow (upper arm/elbow stay
       // put), waving the hand side to side. Composes on top of the raised forearm angle.
       const wave = isLeft ? (caps.get(ARMS_LEFT_WAVE_KEY) ?? 0.5) : 0.5;
       const waveDelta = (wave - 0.5) * 2 * HAND_WAVE_DEG;
-      const lowerAngle = restLower + raise * (LEFT_LOWER_RAISED_ANGLE - LEFT_LOWER_ANGLE) + waveDelta;
+      const lowerAngle = restLower + raise * (LEFT_LOWER_RAISED_ANGLE - LEFT_LOWER_ANGLE) + waveDelta + crouchLowerDelta;
 
       for (let i = 0; i < el.children.length; i++) {
         const upper = el.children[i] as HTMLElement;
@@ -1297,6 +1424,11 @@ function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; them
       ref={armRef}
       style={{
         position: "absolute",
+        // The wrapper carries a transform (crouch translateY), so it's its own stacking context —
+        // z-index must live HERE (not on the inner layers) to lift the whole arm above the legs
+        // (now z2) so hands render above feet, while staying BELOW the body face (z4) so the arms
+        // never render in front of the torso.
+        zIndex: 3,
         top: 0,
         left: 0,
         width: 0,
@@ -1307,7 +1439,7 @@ function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; them
       <div
         style={{
           position: "absolute",
-          zIndex: 2,
+          zIndex: 4,
           top: s(BODY_H * ARM_SHOULDER_RATIO),
           left: 0,
           width: s(ARM_UPPER_W),
@@ -1337,7 +1469,7 @@ function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; them
       <div
         style={{
           position: "absolute",
-          zIndex: showAnchor ? 999 : 2,
+          zIndex: showAnchor ? 999 : 4,
           top: s((BODY_H * ARM_SHOULDER_RATIO) + ARM_OFFSET / 2),
           left: s(ARM_OFFSET / 2),
           width: s(ARM_UPPER_W - ARM_OFFSET),
@@ -1380,6 +1512,7 @@ function RightArm({ scale = 1, theme, showAnchor = false }: { scale: number; the
       ref={armRef}
       style={{
         position: "absolute",
+        zIndex: 3, // wrapper is a stacking context (transform) — z-index belongs here (see LeftArm)
         top: 0,
         bottom: 0,
         right: 0,
@@ -1390,7 +1523,7 @@ function RightArm({ scale = 1, theme, showAnchor = false }: { scale: number; the
       <div
         style={{
           position: "absolute",
-          zIndex: 2,
+          zIndex: 4,
           top: s(BODY_H * ARM_SHOULDER_RATIO),
           right: 0,
           width: s(ARM_UPPER_W),
@@ -1420,7 +1553,7 @@ function RightArm({ scale = 1, theme, showAnchor = false }: { scale: number; the
       <div
         style={{
           position: "absolute",
-          zIndex: showAnchor ? 999 : 2,
+          zIndex: showAnchor ? 999 : 4,
           top: s((BODY_H * ARM_SHOULDER_RATIO) + ARM_OFFSET / 2),
           right: s(ARM_OFFSET / 2),
           width: s(ARM_UPPER_W - ARM_OFFSET),
@@ -1490,13 +1623,18 @@ function useLegRef(scale: number, side: "left" | "right") {
       // Hip inward shift — slide the leg wrapper's edge toward body center as body.turn departs 0.5.
       el.style[side] = `${distance * HIP_TURN_INWARD * scale}px`;
 
-      // legs.swing — rotate the whole leg about the hip, anti-phase across the two legs, so they
+      // legs.stride — rotate the whole leg about the hip, anti-phase across the two legs, so they
       // alternate during a walk. Composes on top of each leg's rest angle. Both upper-leg layers
       // (outline + face) share the angle; the foot rides along since it's their child.
-      const swing = caps.get(LEGS_SWING_KEY) ?? 0.5;
+      const swing = caps.get(LEGS_STRIDE_KEY) ?? 0.5;
       const swingSign = isLeft ? 1 : -1;
       const restAngle = isLeft ? LEFT_LEG_ANGLE : RIGHT_LEG_ANGLE;
-      const legAngle = restAngle + swingSign * (swing - 0.5) * 2 * LEG_SWING_DEG;
+      // *.flail (drop) — per-leg thrash, independent per limb, symmetric ± around the rest leg.
+      // The per-leg cap drives it directly (so the debug slider works standalone); the cap already
+      // carries its own fade during a real drop. No bias — legs don't shift up like the arms do.
+      const legFlailCap = caps.get(isLeft ? LEGS_LEFT_FLAIL_KEY : LEGS_RIGHT_FLAIL_KEY) ?? 0.5;
+      const flailDelta = (legFlailCap - 0.5) * 2 * LEG_FLAIL_DEG;
+      const legAngle = restAngle + swingSign * (swing - 0.5) * 2 * LEG_STRIDE_DEG + flailDelta;
 
       // Foot slide combines trailing-forward + leading-pullback contributions. Only one
       // contribution is non-zero at a time (a leg is either trailing or leading, not both).
@@ -1574,7 +1712,7 @@ function LeftLeg({ scale = 1, theme, showAnchor = false }: { scale: number; them
       <div
         style={{
           position: "absolute",
-          zIndex: 3,
+          zIndex: 2,
           bottom: s(-LEG_H + LEG_HIP_TUCK + LEG_OFFSET / 2),
           left: s(BODY_OFFSET / 2 + BODY_W * LEG_HIP_INSET + LEG_OFFSET / 2),
           width: s(LEG_W - LEG_OFFSET),
@@ -1658,7 +1796,7 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
       <div
         style={{
           position: "absolute",
-          zIndex: 3,
+          zIndex: 2,
           bottom: s(-LEG_H + LEG_HIP_TUCK + LEG_OFFSET / 2),
           right: s(BODY_OFFSET / 2 + BODY_W * LEG_HIP_INSET + LEG_OFFSET / 2),
           width: s(LEG_W - LEG_OFFSET),

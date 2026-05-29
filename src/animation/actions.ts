@@ -5,6 +5,7 @@ import { createRaiseHandAnimation, RAISE_HAND_DURATION_MS } from "./raiseHand";
 import { createWaveHandAnimation } from "./waveHand";
 import { createWalk } from "./walk";
 import type { WalkDirection } from "./walk";
+import { createDrop } from "./drop";
 
 // An action is a top-level one-shot: it composes parallel body-part animations under one
 // duration, then mode resumes. Animations are keyed by capability so they slot into the
@@ -30,15 +31,30 @@ export type Action = {
     rampStartMs: number;
     rampEndMs: number;
     accelMs: number; // fixed ease-in/ease-out duration for the body.x slide (trapezoidal profile)
+    arrive?: boolean; // come: slide from the offset INTO the anchor (no net displacement) vs walk's offset-FROM
+  };
+  // Present only for `drop`: the vertical free-fall. The component drives body.y from `offsetBodyWidths`
+  // above the anchor down to it over `fallMs` with a gravity profile, then the landing crouch (in
+  // `animations`) absorbs the impact. No net displacement — Tally lands on the anchor.
+  descent?: {
+    offsetBodyWidths: number;
+    fallMs: number;
   };
 };
 
 // Actions are triggered by a spec object rather than a bare name, because some actions take
 // parameters (walk needs a direction and a distance). Discriminated on `name`.
+//
+// walk vs come (inverse): walk leaves the anchor and travels `distance` away (net displacement);
+// come is an ENTRANCE — Tally starts `distance` off the anchor on the given side and walks IN to
+// the anchor, ending exactly there (no net displacement). `direction` for come is the side Tally
+// comes FROM; distance is in the same body-widths as walk.
 export type ActionSpec =
   | { name: "disagree" }
   | { name: "agree" }
-  | { name: "walk"; direction: WalkDirection; distance: number };
+  | { name: "walk"; direction: WalkDirection; distance: number }
+  | { name: "come"; direction: WalkDirection; distance: number }
+  | { name: "drop"; distance: number };
 
 export type ActionName = ActionSpec["name"];
 
@@ -77,6 +93,36 @@ export function createAction(spec: ActionSpec): Action {
           rampEndMs: walk.rampEndMs,
           accelMs: walk.accelMs,
         },
+      };
+    }
+    case "come": {
+      // Inverse of walk: Tally enters from `distance` off the anchor on `direction`'s side and
+      // walks IN to the anchor. The gait travels TOWARD the anchor — i.e. the opposite direction
+      // — so reuse createWalk with the flipped direction; `arrive` makes body.x slide offset→0.
+      const gaitDirection: WalkDirection = spec.direction === "left" ? "right" : "left";
+      const walk = createWalk(gaitDirection, spec.distance);
+      return {
+        duration: walk.duration,
+        animations: walk.animations,
+        releaseMs: walk.releaseMs,
+        locomotion: {
+          direction: gaitDirection,
+          travelBodyWidths: walk.travelBodyWidths,
+          rampStartMs: walk.rampStartMs,
+          rampEndMs: walk.rampEndMs,
+          accelMs: walk.accelMs,
+          arrive: true,
+        },
+      };
+    }
+    case "drop": {
+      // Vertical mirror of come: free-fall from `distance` above and land on the anchor. The gait
+      // is frantic per-limb flail (during the fall) + a landing crouch; the descent is component-side.
+      const d = createDrop(spec.distance);
+      return {
+        duration: d.duration,
+        animations: d.animations,
+        descent: { offsetBodyWidths: d.offsetBodyWidths, fallMs: d.fallMs },
       };
     }
   }

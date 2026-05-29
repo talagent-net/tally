@@ -10,7 +10,7 @@ import type { AnimationFn } from "./engine";
 // Timeline (one walk):
 //   [0, TURN_IN_MS)              turn-in: body pivots to face the travel direction, leans in;
 //                                body.x is already sliding here (rampStartMs = 0)
-//   [TURN_IN_MS, rampEndMs)      stride:  body.x continues; bounce + legs.swing kick in together
+//   [TURN_IN_MS, rampEndMs)      stride:  body.x continues; bounce + legs.stride kick in together
 //                                (both planted/at-rest through the turn, phase-locked thereafter)
 //   [rampEndMs, duration)        settle:  body unwinds back to forward / upright
 // Only the horizontal slide (body.x) overlaps the turn; the gait cycle (bounce + leg swing) is
@@ -44,7 +44,7 @@ const WALK_TRAVEL_PER_BODYWIDTH = 2.2;
 const WALK_RELEASE_MS = 0;
 const WALK_FACE_TURN = 0.45;        // body.turn offset from 0.5 toward the travel direction (0.5 = full profile)
 const WALK_LEAN = 0.3;             // body.lean offset from 0.5 toward the travel direction (normalized)
-const WALK_LEG_SWING = 0.5;        // legs.swing amplitude around 0.5 (0.5 = full normalized swing both ways)
+const WALK_LEG_SWING = 0.5;        // legs.stride amplitude around 0.5 (0.5 = full normalized swing both ways)
 const WALK_BOUNCE_RANGE = 0.4;     // fraction of the FULL body.bounce range used per walk step
 
 const TURN_NEUTRAL = 0.5;
@@ -104,7 +104,7 @@ function createBounce(steps: number, startMs: number, endMs: number): AnimationF
   };
 }
 
-// legs.swing stays neutral (legs planted) through the turn-in, then alternates over the stride
+// legs.stride stays neutral (legs planted) through the turn-in, then alternates over the stride
 // window [startMs, endMs] — full sine, so one leg forward = half a period = one step. Unlike the
 // bounce (which starts at t=0), the legs only begin swinging once the body has turned. Starts and
 // ends on neutral (sin from 0 to an integer × π). Rendered anti-phase across the two legs.
@@ -147,10 +147,10 @@ export function createWalk(direction: WalkDirection, distance: number): Walk {
       "body.turn": createEnvelope(turnTarget, TURN_NEUTRAL, rampEndMs, duration),
       "body.lean": createEnvelope(leanTarget, LEAN_NEUTRAL, rampEndMs, duration),
       "body.bounce": createBounce(steps, TURN_IN_MS, rampEndMs),
-      "legs.swing": createSwing(steps, TURN_IN_MS, rampEndMs),
+      "legs.stride": createSwing(steps, TURN_IN_MS, rampEndMs),
       // Same swing waveform as the legs; the arm renderer applies the opposite sign per side so the
       // arms counter-swing the legs (and each other).
-      "arms.swing": createSwing(steps, TURN_IN_MS, rampEndMs),
+      "arms.stride": createSwing(steps, TURN_IN_MS, rampEndMs),
     },
   };
 }

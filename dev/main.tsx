@@ -71,8 +71,13 @@ const debugCapabilities: { key: string; rest: number }[] = [
   { key: "body.turn", rest: 0.5 },
   { key: "body.bounce", rest: 0 },
   { key: "body.lean", rest: 0.5 },
-  { key: "legs.swing", rest: 0.5 },
-  { key: "arms.swing", rest: 0.5 },
+  { key: "body.crouch", rest: 0 },
+  { key: "legs.stride", rest: 0.5 },
+  { key: "arms.stride", rest: 0.5 },
+  { key: "arms.left.flail", rest: 0.5 },
+  { key: "arms.right.flail", rest: 0.5 },
+  { key: "legs.left.flail", rest: 0.5 },
+  { key: "legs.right.flail", rest: 0.5 },
   { key: "arms.left.raise", rest: 0 },
   { key: "arms.left.wave", rest: 0.5 },
   { key: "antenna.wiggle", rest: 0.5 },
@@ -240,6 +245,27 @@ function App() {
         >
           walk →
         </button>
+        <button
+          type="button"
+          onClick={() => fireAction({ name: "come", direction: "left", distance: walkDistance })}
+          style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
+        >
+          come ↦ (from left)
+        </button>
+        <button
+          type="button"
+          onClick={() => fireAction({ name: "come", direction: "right", distance: walkDistance })}
+          style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
+        >
+          come ↤ (from right)
+        </button>
+        <button
+          type="button"
+          onClick={() => fireAction({ name: "drop", distance: walkDistance })}
+          style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
+        >
+          drop ↓
+        </button>
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#666", width: "100%" }}>
           <span style={{ width: 60 }}>Distance</span>
           <input
@@ -263,7 +289,7 @@ function App() {
           display: "flex",
           justifyContent: "center",
           alignItems: "flex-start",
-          paddingTop: scale * 240 + 40,
+          paddingTop: 480,
           overflow: "auto",
         }}
       >
