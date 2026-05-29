@@ -10,8 +10,8 @@ const PEAK_AMPLITUDE = 0.5;     // ±0.5 from neutral = full [0, 1] range at the
 const CYCLE_MS = 160;           // quick oscillation per cycle
 const MIN_CYCLES = 3;
 const MAX_CYCLES = 6;
-const MIN_INTERVAL_MS = 5000;
-const MAX_INTERVAL_MS = 12000;
+const MIN_INTERVAL_MS = 15000;
+const MAX_INTERVAL_MS = 55000;
 
 const randRange = (min: number, max: number) => min + Math.random() * (max - min);
 const randIntRange = (min: number, max: number) => Math.floor(randRange(min, max + 1));

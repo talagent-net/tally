@@ -13,11 +13,25 @@ const HEAD_TURN_KEY = "head.turn";
 const HEAD_TILT_KEY = "head.tilt";
 const ARMS_LEFT_RAISE_KEY = "arms.left.raise";
 const ANTENNA_WIGGLE_KEY = "antenna.wiggle";
+const BODY_TURN_KEY = "body.turn";
 const MAX_HEAD_BOB_DEGREES = 18;
 
-// head.tilt and head.turn share the head's geometry and visually conflict if applied together.
-// Declared once via useConflict — the engine handles the smooth handoff between them.
-const HEAD_AXIS_CONFLICT = [HEAD_TILT_KEY, HEAD_TURN_KEY];
+// head.tilt, head.turn, and body.turn all squash the head's geometry — head.tilt on the
+// vertical axis, head.turn and body.turn (via the effective-head-turn sum) on the horizontal.
+// Applying any two together looks broken. Declared once via useConflict — the engine handles
+// the smooth handoff between them.
+const HEAD_AXIS_CONFLICT = [HEAD_TILT_KEY, HEAD_TURN_KEY, BODY_TURN_KEY];
+
+// Head renderers compute their "effective turn" from body.turn and head.turn combined.
+// First version: head follows body 1:1 (head.turn capability stays at rest 0.5 by default,
+// so effective = body.turn). When something drives head.turn off rest (e.g. shakeHead during
+// disagree), it acts as a SIGNED OFFSET on top of body.turn. Clamped to [0, 1] to keep the
+// downstream foreshortening math bounded.
+const effectiveHeadTurn = (caps: ReadonlyMap<string, number>): number => {
+  const head = caps.get(HEAD_TURN_KEY) ?? 0.5;
+  const body = caps.get(BODY_TURN_KEY) ?? 0.5;
+  return Math.max(0, Math.min(1, body + (head - 0.5)));
+};
 
 export type Mode = "hangout" | "jump" | "debug";
 
@@ -75,6 +89,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   useCapability(HEAD_TILT_KEY, 0.5); // 0.5 = looking straight, 0 = looking down, 1 = looking up
   useCapability(ARMS_LEFT_RAISE_KEY, 0); // 0 = arm at rest pose; 1 = raised to a "stop" gesture
   useCapability(ANTENNA_WIGGLE_KEY, 0.5); // 0.5 = no wiggle; 0/1 = max wiggle in either direction
+  useCapability(BODY_TURN_KEY, 0.5); // 0.5 = facing forward; 0/1 = max body turn either way (head follows by default)
 
   // head.tilt vs head.turn — the engine will smoothly unwind one when the other gets engaged.
   useConflict(HEAD_AXIS_CONFLICT);
@@ -141,6 +156,9 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     [mode, activeReaction],
   );
 
+  // head.turn is an OFFSET on top of body.turn (renderers compute effective = sum). lookAround
+  // drives it ambiently in hangout — the head wiggles around whatever angle the body is currently
+  // at. Reactions like shakeHead override and shake from that body angle too.
   const headTurnAnimation = useMemo(() => {
     if (activeReaction?.animations[HEAD_TURN_KEY]) return activeReaction.animations[HEAD_TURN_KEY];
     const dbg = debugAnimFor(HEAD_TURN_KEY);
@@ -148,6 +166,16 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     return lookAround?.headTurn ?? null;
   }, [activeReaction, debugAnimFor, lookAround]);
   useCapabilityAnimation(HEAD_TURN_KEY, headTurnAnimation);
+
+  // body.turn has no mode-level idle — the body stays wherever it's last been pointed (rest by
+  // default). Reactions / debug / future deliberate body-turn animations drive it.
+  const bodyTurnAnimation = useMemo(() => {
+    if (activeReaction?.animations[BODY_TURN_KEY]) return activeReaction.animations[BODY_TURN_KEY];
+    const dbg = debugAnimFor(BODY_TURN_KEY);
+    if (dbg) return dbg;
+    return null;
+  }, [activeReaction, debugAnimFor]);
+  useCapabilityAnimation(BODY_TURN_KEY, bodyTurnAnimation);
 
   const headBobAnimation = useMemo(() => {
     if (activeReaction?.animations[HEAD_BOB_KEY]) return activeReaction.animations[HEAD_BOB_KEY];
@@ -224,9 +252,74 @@ const BODY_BOTTOM = 15;
 const BODY_PIVOT_X = (BODY_W + BODY_OFFSET) / 2;
 const BODY_PIVOT_Y = (BODY_H + BODY_OFFSET) * 0.6;
 const BODY_ROTATION = 0;
-const CHEST_WIDTH = 34;
-const CHEST_HEIGHT = 28;
+const CHEST_SIZE = 30;             // square — single dimension for both width and height
 const CHEST_TOP_RATIO = 0.25;
+const CHEST_TURN_MIN_RATIO = 0.15;  // chest width fraction at full body turn — foreshortens more aggressively than the body face, since the logo is a forward-facing decal and largely disappears in profile
+const CHEST_TURN_SLIDE = 16;        // unscaled px the chest slides horizontally at full body turn — same direction as the turn
+const BODY_TURN_RATIO = .84;  // visible body WIDTH fraction at full body turn — matches HEAD_TURN_RATIO for now
+
+// Drives two body.turn effects on the chest: width shrinks linearly toward CHEST_TURN_MIN_RATIO,
+// and the whole element slides horizontally in the SIGNED direction of the turn. The chest div
+// uses left:50% + translateX(-50%) for centering — the renderer rewrites the full transform so
+// the slide composes with the centering offset.
+function useChestRef(scale: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const render = useCallback(
+    (caps: ReadonlyMap<string, number>) => {
+      const el = ref.current;
+      if (!el) return;
+      const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
+      const signedDistance = (bodyTurn - 0.5) * 2;
+      const distance = Math.abs(signedDistance);
+      const factor = 1 - distance * (1 - CHEST_TURN_MIN_RATIO);
+      el.style.width = `${CHEST_SIZE * scale * factor}px`;
+      const slideOffset = signedDistance * CHEST_TURN_SLIDE * scale;
+      el.style.transform = `translateX(calc(-50% + ${slideOffset}px))`;
+    },
+    [scale],
+  );
+  useAnimationRenderer(render);
+  return ref;
+}
+
+// Shrinks the body's shadow + main-face widths horizontally as body.turn moves away from 0.5
+// and re-centers both around the body container's vertical axis. Inner main face keeps a
+// constant pixel inset from the shadow (= BODY_OFFSET / 2 on each side) so the outline
+// thickness stays uniform regardless of how much the body is turned. Children of Body (head,
+// arms, legs) aren't repositioned by this renderer — that's a follow-up once the body shape
+// shrink itself reads right.
+function useBodyRef(scale: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const render = useCallback(
+    (caps: ReadonlyMap<string, number>) => {
+      const el = ref.current;
+      if (!el) return;
+      const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
+      const distance = Math.abs(bodyTurn - 0.5) * 2;
+      const turnFactor = 1 - distance * (1 - BODY_TURN_RATIO);
+
+      const fullW = (BODY_W + BODY_OFFSET) * scale;
+      const shadowW = fullW * turnFactor;
+      const shadowLeft = (fullW - shadowW) / 2;
+      const mainW = shadowW - BODY_OFFSET * scale;
+      const mainLeft = shadowLeft + (BODY_OFFSET / 2) * scale;
+
+      const shadow = el.firstElementChild as HTMLElement | null;
+      if (shadow) {
+        shadow.style.width = `${shadowW}px`;
+        shadow.style.left = `${shadowLeft}px`;
+      }
+      const mainFace = el.children[1] as HTMLElement | null;
+      if (mainFace) {
+        mainFace.style.width = `${mainW}px`;
+        mainFace.style.left = `${mainLeft}px`;
+      }
+    },
+    [scale],
+  );
+  useAnimationRenderer(render);
+  return ref;
+}
 
 function Body({
   scale = 1,
@@ -244,12 +337,15 @@ function Body({
   children: React.ReactNode;
 }) {
   const s = (v: number) => v * scale;
+  const bodyRef = useBodyRef(scale);
+  const chestRef = useChestRef(scale);
 
   const baseRadius = (extra: number) =>
     `${s(BODY_RADIUS_TOP + extra)}px ${s(BODY_RADIUS_TOP + extra)}px ${s(BODY_RADIUS_BOT + extra)}px ${s(BODY_RADIUS_BOT + extra)}px`;
 
   return (
     <div
+      ref={bodyRef}
       style={{
         position: "absolute",
         bottom: s(BODY_BOTTOM),
@@ -288,14 +384,15 @@ function Body({
       />
       {(chestImage || chestOutline) && (
         <div
+          ref={chestRef}
           style={{
             position: "absolute",
             zIndex: 4,
             top: s(BODY_OFFSET / 2 + BODY_H * CHEST_TOP_RATIO),
             left: "50%",
             transform: "translateX(-50%)",
-            width: s(CHEST_WIDTH),
-            height: s(CHEST_HEIGHT),
+            width: s(CHEST_SIZE),
+            height: s(CHEST_SIZE),
           }}
         >
           {/* Outline layer — outer image, tinted primaryDark */}
@@ -307,8 +404,8 @@ function Body({
                 backgroundColor: theme.primaryMid,
                 WebkitMaskImage: `url(${chestOutline})`,
                 maskImage: `url(${chestOutline})`,
-                WebkitMaskSize: "contain",
-                maskSize: "contain",
+                WebkitMaskSize: "100% 100%",
+                maskSize: "100% 100%",
                 WebkitMaskRepeat: "no-repeat",
                 maskRepeat: "no-repeat",
                 WebkitMaskPosition: "center",
@@ -325,8 +422,8 @@ function Body({
                 backgroundColor: theme.outline,
                 WebkitMaskImage: `url(${chestImage})`,
                 maskImage: `url(${chestImage})`,
-                WebkitMaskSize: "contain",
-                maskSize: "contain",
+                WebkitMaskSize: "100% 100%",
+                maskSize: "100% 100%",
                 WebkitMaskRepeat: "no-repeat",
                 maskRepeat: "no-repeat",
                 WebkitMaskPosition: "center",
@@ -356,7 +453,7 @@ function useHeadRef(scale: number) {
     // head.turn — horizontal foreshortening. Width shrinks symmetrically around the center.
     // Side outlines stay constant thickness because the inner divs use constant pixel insets
     // from the (potentially shifted) base.
-    const turn = caps.get(HEAD_TURN_KEY) ?? 0.5;
+    const turn = effectiveHeadTurn(caps);
     const turnFactor = (1 - HEAD_TURN_RATIO) * 2 * (.5 - Math.abs(turn - .5)) + HEAD_TURN_RATIO;
     const baseW = (HEAD_W + HEAD_OFFSET) * scale * turnFactor;
     const turnShift = ((HEAD_W + HEAD_OFFSET) * scale - baseW) / 2;
@@ -554,7 +651,7 @@ function useEyeRefShared(scale: number, side: "left" | "right") {
     const el = ref.current;
     if (!el) return;
     const blink = caps.get(BLINK_KEY) ?? 1;
-    const turn = caps.get(HEAD_TURN_KEY) ?? 0.5;
+    const turn = effectiveHeadTurn(caps);
     const tilt = remapTilt(caps.get(HEAD_TILT_KEY) ?? 0.5);
 
     // ==== VERTICAL: eyes.blink × head.tilt ====
@@ -707,7 +804,7 @@ function useEarRefShared(scale: number, side: "left" | "right", hideWhenTurnGrea
   const render = useCallback((caps: ReadonlyMap<string, number>) => {
     const el = ref.current;
     if (!el) return;
-    const turn = caps.get(HEAD_TURN_KEY) ?? 0.5;
+    const turn = effectiveHeadTurn(caps);
     const tilt = remapTilt(caps.get(HEAD_TILT_KEY) ?? 0.5);
     const restOffset = -EAR_REST_OFFSET;
     const restRightEdge = restOffset + EAR_REST_W;
@@ -826,7 +923,7 @@ function useAntennaRef(scale: number) {
   const render = useCallback((caps: ReadonlyMap<string, number>) => {
     const el = ref.current;
     if (!el) return;
-    const turn = caps.get(HEAD_TURN_KEY) ?? 0.5;
+    const turn = effectiveHeadTurn(caps);
     const tilt = remapTilt(caps.get(HEAD_TILT_KEY) ?? 0.5);
 
     // Position: stay glued to the visible head's right edge as it turns AND track the head's
@@ -904,6 +1001,28 @@ const ARM_LOWER_W = 24;
 const ARM_LOWER_H = 40;
 const ARM_OFFSET = 12;
 const ARM_SHOULDER_RATIO = 0.15;
+const SHOULDER_TURN_INWARD = 16;  // max unscaled px each shoulder anchor moves toward body center at full body.turn
+
+// Shared renderer for both arm and leg wrappers: shifts the wrapper inward (toward the body's
+// horizontal center) as body.turn moves away from 0.5. Linear in tiltDistance. Side picks which
+// CSS property to write — left for viewer-left limbs, right for viewer-right. The wrapper itself
+// is zero-width, anchored at the body container's edge; shifting its `left`/`right` slides every
+// child relative to that edge.
+function useBodyTurnInwardShiftRef(scale: number, side: "left" | "right", maxShift: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const render = useCallback(
+    (caps: ReadonlyMap<string, number>) => {
+      const el = ref.current;
+      if (!el) return;
+      const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
+      const distance = Math.abs(bodyTurn - 0.5) * 2;
+      el.style[side] = `${distance * maxShift * scale}px`;
+    },
+    [scale, side, maxShift],
+  );
+  useAnimationRenderer(render);
+  return ref;
+}
 
 const LEFT_UPPER_ANGLE = 25;
 const RIGHT_UPPER_ANGLE = -25;
@@ -926,6 +1045,13 @@ function useLeftArmRef(scale: number) {
     (caps: ReadonlyMap<string, number>) => {
       const el = ref.current;
       if (!el) return;
+
+      // body.turn — shift the entire arm wrapper inward by sliding its left edge toward center.
+      const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
+      const distance = Math.abs(bodyTurn - 0.5) * 2;
+      el.style.left = `${distance * SHOULDER_TURN_INWARD * scale}px`;
+
+      // arms.left.raise — rotate both layers' upper and lower segments.
       const raise = caps.get(ARMS_LEFT_RAISE_KEY) ?? 0;
       const upperAngle = LEFT_UPPER_ANGLE + raise * (LEFT_UPPER_RAISED_ANGLE - LEFT_UPPER_ANGLE);
       const lowerAngle = LEFT_LOWER_ANGLE + raise * (LEFT_LOWER_RAISED_ANGLE - LEFT_LOWER_ANGLE);
@@ -981,7 +1107,7 @@ function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; them
             width: s(ARM_LOWER_W),
             height: s(ARM_LOWER_H),
             backgroundColor: theme.outline,
-            borderRadius: `${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 4)}px ${s(ARM_LOWER_W / 2)}px`,
+            borderRadius: s(ARM_LOWER_W / 2),
             // Elbow pivot: center top
             transformOrigin: `${s(ARM_UPPER_W / 2)}px ${s(ARM_LOWER_W / 2)}px`,
             transform: `rotate(${LEFT_LOWER_ANGLE}deg)`,
@@ -1011,7 +1137,7 @@ function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; them
             width: s(ARM_LOWER_W - ARM_OFFSET),
             height: s(ARM_LOWER_H - ARM_OFFSET),
             backgroundColor: theme.primary,
-            borderRadius: `${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 4)}px ${s(ARM_LOWER_W / 2)}px`,
+            borderRadius: s(ARM_LOWER_W / 2),
             // Elbow pivot: center top
             transformOrigin: `${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px ${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px`,
             transform: `rotate(${LEFT_LOWER_ANGLE}deg)`,
@@ -1027,9 +1153,20 @@ function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; them
 
 function RightArm({ scale = 1, theme, showAnchor = false }: { scale: number; theme: ColorTheme; showAnchor?: boolean }) {
   const s = (v: number) => v * scale;
+  const armRef = useBodyTurnInwardShiftRef(scale, "right", SHOULDER_TURN_INWARD);
 
   return (
-    <>
+    <div
+      ref={armRef}
+      style={{
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        right: 0,
+        width: 0,
+        overflow: "visible",
+      }}
+    >
       <div
         style={{
           position: "absolute",
@@ -1053,7 +1190,7 @@ function RightArm({ scale = 1, theme, showAnchor = false }: { scale: number; the
             width: s(ARM_LOWER_W),
             height: s(ARM_LOWER_H),
             backgroundColor: theme.outline,
-            borderRadius: `${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 4)}px`,
+            borderRadius: s(ARM_LOWER_W / 2),
             // Elbow pivot: center top
             transformOrigin: `${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px`,
             transform: `rotate(${RIGHT_LOWER_ANGLE}deg)`,
@@ -1083,7 +1220,7 @@ function RightArm({ scale = 1, theme, showAnchor = false }: { scale: number; the
             width: s(ARM_LOWER_W - ARM_OFFSET),
             height: s(ARM_LOWER_H - ARM_OFFSET),
             backgroundColor: theme.primary,
-            borderRadius: `${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 4)}px`,
+            borderRadius: s(ARM_LOWER_W / 2),
             // Elbow pivot: center top
             transformOrigin: `${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px ${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px`,
             transform: `rotate(${RIGHT_LOWER_ANGLE}deg)`,
@@ -1093,13 +1230,14 @@ function RightArm({ scale = 1, theme, showAnchor = false }: { scale: number; the
         </div>
         {showAnchor && <PivotMarker scale={scale} x={(ARM_UPPER_W - ARM_OFFSET) / 2} y={(ARM_UPPER_W - ARM_OFFSET) / 2} />}
       </div>
-    </>
+    </div>
   );
 }
 
 const LEG_HIP_INSET = 0;
 const LEG_W = 24;
 const LEG_H = 36;
+const HIP_TURN_INWARD = 12;  // max unscaled px each hip anchor moves toward body center at full body.turn
 const LEG_HIP_TUCK = 26;
 const FOOT_W = 32;
 const FOOT_H = 24;
@@ -1109,12 +1247,70 @@ const LEFT_LEG_ANGLE = 9;
 const RIGHT_LEG_ANGLE = -9;
 const LEFT_FOOT_ANGLE = -9;
 const RIGHT_FOOT_ANGLE = 9;
+const FOOT_TRAIL_INWARD = 0;    // unscaled px the TRAILING foot slides INWARD toward body center at full body.turn
+const FOOT_LEAD_OUTWARD = 0;    // unscaled px the LEADING foot slides OUTWARD away from body center at full body.turn
+const FOOT_REST_INSET = LEG_OFFSET * 0.25;  // CSS left/right value the foot sits at when at rest
+
+// Leg renderer — hip-inward shift + foot horizontal slide. Feet move in opposite local
+// directions so they don't cross:
+//   TRAILING foot slides INWARD across its leg's local frame (toward body center).
+//   LEADING foot slides OUTWARD across its leg's local frame (away from body center).
+// The TRAILING contribution INCREASES the CSS prop value; the LEADING contribution DECREASES
+// it. Only one of the two contributions is non-zero at a time.
+function useLegRef(scale: number, side: "left" | "right") {
+  const ref = useRef<HTMLDivElement>(null);
+  const render = useCallback(
+    (caps: ReadonlyMap<string, number>) => {
+      const el = ref.current;
+      if (!el) return;
+      const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
+      const distance = Math.abs(bodyTurn - 0.5) * 2;
+      const isLeft = side === "left";
+
+      // Hip inward shift (identical to useBodyTurnInwardShiftRef).
+      el.style[side] = `${distance * HIP_TURN_INWARD * scale}px`;
+
+      // Foot slide combines trailing-forward + leading-pullback contributions. Only one
+      // contribution is non-zero at a time (a leg is either trailing or leading, not both).
+      const trailingDistance = isLeft
+        ? Math.max(0, bodyTurn - 0.5) * 2   // LeftLeg trails when body.turn > 0.5
+        : Math.max(0, 0.5 - bodyTurn) * 2;  // RightLeg trails when body.turn < 0.5
+      const leadingDistance = isLeft
+        ? Math.max(0, 0.5 - bodyTurn) * 2   // LeftLeg leads when body.turn < 0.5
+        : Math.max(0, bodyTurn - 0.5) * 2;  // RightLeg leads when body.turn > 0.5
+      const slide = trailingDistance * FOOT_TRAIL_INWARD - leadingDistance * FOOT_LEAD_OUTWARD;
+      const footInset = (FOOT_REST_INSET + slide) * scale;
+
+      // Two upper-leg layers (outer outline + inner face) — each has the foot as its
+      // firstElementChild. Update both feet's position together.
+      for (let i = 0; i < el.children.length; i++) {
+        const upperLeg = el.children[i] as HTMLElement;
+        const foot = upperLeg.firstElementChild as HTMLElement | null;
+        if (foot) foot.style[side] = `${footInset}px`;
+      }
+    },
+    [scale, side],
+  );
+  useAnimationRenderer(render);
+  return ref;
+}
 
 function LeftLeg({ scale = 1, theme, showAnchor = false }: { scale: number; theme: ColorTheme; showAnchor?: boolean }) {
   const s = (v: number) => v * scale;
+  const legRef = useLegRef(scale, "left");
 
   return (
-    <>
+    <div
+      ref={legRef}
+      style={{
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        left: 0,
+        width: 0,
+        overflow: "visible",
+      }}
+    >
       {/* Outer shadow layer */}
       <div
         style={{
@@ -1140,7 +1336,7 @@ function LeftLeg({ scale = 1, theme, showAnchor = false }: { scale: number; them
             height: s(FOOT_W),
             transformOrigin: `${s(LEG_W / 2)}px ${s(FOOT_H / 2)}px`,
             backgroundColor: theme.outline,
-            borderRadius: `${s((FOOT_H) * .25)}px ${s((FOOT_H) * .25)}px ${s((FOOT_H) * .25)}px ${s((FOOT_H) * .5)}px`,
+            borderRadius: `${s(FOOT_H * 0.5)}px ${s(FOOT_H * 0.25)}px ${s(FOOT_H * 0.25)}px ${s(FOOT_H * 0.5)}px`,
             transform: `rotate(${LEFT_FOOT_ANGLE + 90}deg)`,
           }}
         />
@@ -1169,7 +1365,7 @@ function LeftLeg({ scale = 1, theme, showAnchor = false }: { scale: number; them
             width: s(FOOT_H - LEG_OFFSET),
             height: s(FOOT_W - LEG_OFFSET),
             backgroundColor: theme.primary,
-            borderRadius: `${s((FOOT_H - LEG_OFFSET) * .25)}px ${s((FOOT_H - LEG_OFFSET) * .25)}px ${s((FOOT_H - LEG_OFFSET) * .25)}px ${s((FOOT_H - LEG_OFFSET) * .5)}px`,
+            borderRadius: `${s((FOOT_H - LEG_OFFSET) * 0.5)}px ${s((FOOT_H - LEG_OFFSET) * 0.25)}px ${s((FOOT_H - LEG_OFFSET) * 0.25)}px ${s((FOOT_H - LEG_OFFSET) * 0.5)}px`,
             // Elbow pivot: center top
             transformOrigin: `${s((FOOT_H - LEG_OFFSET) / 2)}px ${s((FOOT_H - LEG_OFFSET) / 2)}px`,
             transform: `rotate(${LEFT_FOOT_ANGLE + 90}deg)`,
@@ -1179,15 +1375,26 @@ function LeftLeg({ scale = 1, theme, showAnchor = false }: { scale: number; them
         </div>
         {showAnchor && <PivotMarker scale={scale} x={(LEG_W - LEG_OFFSET) / 2} y={(LEG_W - LEG_OFFSET) / 2} />}
       </div>
-    </>
+    </div>
   );
 }
 
 function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; theme: ColorTheme; showAnchor?: boolean }) {
   const s = (v: number) => v * scale;
+  const legRef = useLegRef(scale, "right");
 
   return (
-    <>
+    <div
+      ref={legRef}
+      style={{
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        right: 0,
+        width: 0,
+        overflow: "visible",
+      }}
+    >
       {/* Outer shadow layer */}
       <div
         style={{
@@ -1213,7 +1420,7 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
             height: s(FOOT_W),
             transformOrigin: `${s(FOOT_H - LEG_W / 2)}px ${s(FOOT_H / 2)}px`,
             backgroundColor: theme.outline,
-            borderRadius: `${s((FOOT_H) * .25)}px ${s((FOOT_H) * .25)}px ${s((FOOT_H) * .5)}px ${s((FOOT_H) * .25)}px`,
+            borderRadius: `${s(FOOT_H * 0.25)}px ${s(FOOT_H * 0.5)}px ${s(FOOT_H * 0.5)}px ${s(FOOT_H * 0.25)}px`,
             transform: `rotate(${RIGHT_FOOT_ANGLE - 90}deg)`,
           }}
         />
@@ -1242,7 +1449,7 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
             width: s(FOOT_H - LEG_OFFSET),
             height: s(FOOT_W - LEG_OFFSET),
             backgroundColor: theme.primary,
-            borderRadius: `${s((FOOT_H - LEG_OFFSET) * .25)}px ${s((FOOT_H - LEG_OFFSET) * .25)}px ${s((FOOT_H - LEG_OFFSET) * .5)}px ${s((FOOT_H - LEG_OFFSET) * .25)}px`,
+            borderRadius: `${s((FOOT_H - LEG_OFFSET) * 0.25)}px ${s((FOOT_H - LEG_OFFSET) * 0.5)}px ${s((FOOT_H - LEG_OFFSET) * 0.5)}px ${s((FOOT_H - LEG_OFFSET) * 0.25)}px`,
             // Ankle pivot: center
             transformOrigin: `${s((FOOT_H - LEG_OFFSET) / 2)}px ${s((FOOT_H - LEG_OFFSET) / 2)}px`,
             transform: `rotate(${RIGHT_FOOT_ANGLE - 90}deg)`,
@@ -1252,7 +1459,7 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
         </div>
         {showAnchor && <PivotMarker scale={scale} x={(LEG_W - LEG_OFFSET) / 2} y={(LEG_W - LEG_OFFSET) / 2} />}
       </div>
-    </>
+    </div>
   );
 }
 

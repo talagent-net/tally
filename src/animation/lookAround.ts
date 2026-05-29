@@ -6,6 +6,12 @@ import type { AnimationFn } from "./engine";
 // it most recently settled on, then occasionally re-aims. Reads as ambient attention rather
 // than a series of discrete glances.
 //
+// Drives head.turn (NOT body.turn) — ambient idle moves the head only; the body holds whatever
+// angle it's currently at. Renderers compute effective head turn = body.turn + (head.turn -
+// 0.5), so head.turn is interpreted as an OFFSET on top of the body's current pose. lookAround
+// produces values in a narrow range around 0.5, so the head wiggles around the body's facing
+// direction without ever fully overriding it.
+//
 // Both capabilities are driven from one shared state machine. step() is idempotent within a
 // tick: it advances once per unique elapsed value and caches the resulting (turn, bob) pair so
 // the engine can call headTurn and headBob in the same frame without double-advancing state.

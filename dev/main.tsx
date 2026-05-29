@@ -62,7 +62,7 @@ const themes: Record<string, ColorTheme> = {
 const scales = [.36, 0.5, 1, 1.5, 2, 2.5, 3, 3.5];
 const modes: Mode[] = ["hangout", "debug"];
 const DEBUG_CAPABILITY_OFF = "(off)";
-const debugCapabilities = [DEBUG_CAPABILITY_OFF, "eyes.blink", "head.bob", "head.turn", "head.tilt", "arms.left.raise", "antenna.wiggle"];
+const debugCapabilities = [DEBUG_CAPABILITY_OFF, "eyes.blink", "head.bob", "head.turn", "head.tilt", "body.turn", "arms.left.raise", "antenna.wiggle"];
 const reactions: ReactionName[] = ["disagree"];
 
 function App() {

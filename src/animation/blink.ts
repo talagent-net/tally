@@ -5,8 +5,8 @@ import type { AnimationFn } from "./engine";
 
 const MIN_DURATION_MS = 110;
 const MAX_DURATION_MS = 180;
-const MIN_INTERVAL_MS = 1500;
-const MAX_INTERVAL_MS = 4500;
+const MIN_INTERVAL_MS = 2400;
+const MAX_INTERVAL_MS = 7200;
 
 const randRange = (min: number, max: number) => min + Math.random() * (max - min);
 
