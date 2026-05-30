@@ -3,6 +3,7 @@ import { colors as defaultColors } from "./colors";
 import { AnimationProvider, useAnimationRenderer, useCapability, useCapabilityAnimation } from "./animation/context";
 import { createBlinkAnimation } from "./animation/blink";
 import { createLookAroundAnimation } from "./animation/lookAround";
+import { createFollowAnimation, type FollowTarget } from "./animation/follow";
 import { createAntennaWiggleAnimation } from "./animation/antennaWiggle";
 import { createAction } from "./animation/actions";
 import type { ActionSpec } from "./animation/actions";
@@ -16,6 +17,10 @@ const ARMS_LEFT_RAISE_KEY = "arms.left.raise";
 const ARMS_LEFT_WAVE_KEY = "arms.left.wave";
 const ANTENNA_WIGGLE_KEY = "antenna.wiggle";
 const BODY_TURN_KEY = "body.turn";
+// upper-body twist: an OFFSET on body.turn that turns only the upper half — the body face foreshortens
+// horizontally and the shoulders/arms pull in, but the hips, legs and feet stay planted. Renderers for
+// the upper parts read body.turn + (upperbody.turn − 0.5); the hip/foot renderer reads body.turn alone.
+const UPPERBODY_TURN_KEY = "upperbody.turn";
 // Locomotion capabilities. body.x is the figure's net horizontal position in *scaled pixels* —
 // it is persistent (does NOT reset to rest after an action), so the figure stays where it walked
 // to. body.bounce (vertical step bounce) and body.lean (lean into the travel direction) are normal
@@ -67,10 +72,33 @@ const ARM_FLAIL_REST_CAP = (25 - ARM_FLAIL_MIN) / (ARM_FLAIL_MAX - ARM_FLAIL_MIN
 const effectiveHeadTurn = (caps: ReadonlyMap<string, number>): number => {
   const head = caps.get(HEAD_TURN_KEY) ?? 0.5;
   const body = caps.get(BODY_TURN_KEY) ?? 0.5;
-  return Math.max(0, Math.min(1, body + (head - 0.5)));
+  const upper = caps.get(UPPERBODY_TURN_KEY) ?? 0.5;
+  // The head rides the upper body: total turn = body + upper-body offset + head offset.
+  return Math.max(0, Math.min(1, body + (upper - 0.5) + (head - 0.5)));
 };
 
-export type Mode = "hangout" | "jump" | "debug";
+// Effective UPPER-body turn for the body face / chest / shoulders: body.turn plus the upper-body
+// offset. Hips and feet ignore this and read raw body.turn, so the stance stays put.
+const effectiveUpperTurn = (caps: ReadonlyMap<string, number>): number => {
+  const body = caps.get(BODY_TURN_KEY) ?? 0.5;
+  const upper = caps.get(UPPERBODY_TURN_KEY) ?? 0.5;
+  return Math.max(0, Math.min(1, body + (upper - 0.5)));
+};
+
+export type Mode = "hangout" | "track" | "debug";
+
+// `track` mode: the head follows the cursor. The head's screen center sits ~TRACK_HEAD_ABOVE_ANCHOR
+// unscaled px above the anchor (BODY_BOTTOM + body height + HEAD_TOP − half the head) and the figure
+// is centered on the anchor horizontally — so we resolve the head point from the root anchor rect.
+// Cursor offset is normalized by a range in body-widths (full deflection at the range edge, clamped)
+// and scaled by the per-axis max deflection from neutral (0.5).
+const TRACK_HEAD_ABOVE_ANCHOR = 125; // unscaled px the head center sits above the anchor
+const TRACK_TURN_RANGE_BW = 6;       // cursor horizontal distance (body-widths) for full turn deflection
+const TRACK_TILT_RANGE_BW = 4;       // cursor vertical distance (body-widths) for full tilt deflection
+const TRACK_TURN_MAX = 0.15;          // max effective head turn from 0.5 (0.5 = full sideways profile; <0.5 keeps the face visible)
+const TRACK_TILT_MAX = 0.3;          // max |head.tilt − 0.5| (input range; head.tilt is softened again at render)
+const TRACK_BODY_TURN_FRACTION = 0.3; // share of the head's turn carried by a slight body.turn (the rest stays a head offset)
+const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 
 export interface ColorTheme {
   primary: string;
@@ -132,6 +160,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   useCapability(ARMS_LEFT_WAVE_KEY, 0.5);// 0.5 = no wave; 0/1 = forearm rotated left/right at the elbow
   useCapability(ANTENNA_WIGGLE_KEY, 0.5); // 0.5 = no wiggle; 0/1 = max wiggle in either direction
   useCapability(BODY_TURN_KEY, 0.5); // 0.5 = facing forward; 0/1 = max body turn either way (head follows by default)
+  useCapability(UPPERBODY_TURN_KEY, 0.5); // 0.5 = square; offset on body.turn that twists only the upper body
   useCapability(BODY_X_KEY, 0);      // net horizontal position in scaled px — persistent across actions
   useCapability(BODY_Y_KEY, 0);      // vertical position in scaled px — the drop free-fall descent (0 = anchor)
   useCapability(BODY_BOUNCE_KEY, 0);    // 0 = grounded; 1 = peak of a walk step bounce
@@ -368,12 +397,6 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   }, [activeAction, mode, debugAnimFor]);
   useCapabilityAnimation(BLINK_KEY, blinkAnimation);
 
-  // head.tilt — action > debug. No mode-level animation.
-  const headTiltAnimation = useMemo(() => {
-    if (activeAction?.animations[HEAD_TILT_KEY]) return activeAction.animations[HEAD_TILT_KEY];
-    return debugAnimFor(HEAD_TILT_KEY);
-  }, [activeAction, debugAnimFor]);
-  useCapabilityAnimation(HEAD_TILT_KEY, headTiltAnimation);
 
   // head.turn + head.bob — action overrides if it touches either; otherwise hangout runs
   // lookAround. lookAround is disabled while a action is active so its state machine resets
@@ -385,19 +408,64 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     [mode, activeAction],
   );
 
+  // `track` mode: the head follows the cursor. The mousemove listener (attached only in track mode)
+  // resolves the head's screen point from the root anchor rect + the known head offset, then writes
+  // a target head.turn/head.tilt into followTargetRef; the follow driver eases the head toward it.
+  // Gated by !activeAction like lookAround, so an action takes over and tracking resumes after.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const followTargetRef = useRef<FollowTarget>({ turn: 0.5, tilt: 0.5, upperTurn: 0.5 });
+  useEffect(() => {
+    if (mode !== "track") return;
+    const onMove = (e: MouseEvent) => {
+      const root = rootRef.current;
+      if (!root) return;
+      const rect = root.getBoundingClientRect(); // 0×0 div: rect origin IS the anchor screen point
+      const headX = rect.left;
+      const headY = rect.top - TRACK_HEAD_ABOVE_ANCHOR * scale;
+      const dx = e.clientX - headX;
+      const dy = e.clientY - headY; // screen-y grows downward: dy<0 = cursor above the head
+      const effTurn = 0.5 + clamp(dx / (TRACK_TURN_RANGE_BW * BODY_W * scale), -1, 1) * TRACK_TURN_MAX;
+      const tilt = 0.5 - clamp(dy / (TRACK_TILT_RANGE_BW * BODY_W * scale), -1, 1) * TRACK_TILT_MAX; // above → look up
+      // Split the effective head turn into a slight upperbody.turn + a head.turn offset (renderers
+      // sum them), so the upper body twists a little while the head's on-screen direction stays as
+      // tuned. The hips/legs stay planted because upperbody.turn doesn't touch them.
+      const upperTurn = 0.5 + (effTurn - 0.5) * TRACK_BODY_TURN_FRACTION;
+      const turn = 0.5 + (effTurn - 0.5) * (1 - TRACK_BODY_TURN_FRACTION);
+      followTargetRef.current = { turn, tilt, upperTurn };
+    };
+    window.addEventListener("mousemove", onMove);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      followTargetRef.current = { turn: 0.5, tilt: 0.5, upperTurn: 0.5 }; // reset so re-entry starts looking straight
+    };
+  }, [mode, scale]);
+  const follow = useMemo(
+    () => (mode === "track" && !activeAction ? createFollowAnimation(followTargetRef) : null),
+    [mode, activeAction],
+  );
+
   // head.turn is an OFFSET on top of body.turn (renderers compute effective = sum). lookAround
-  // drives it ambiently in hangout — the head wiggles around whatever angle the body is currently
-  // at. Actions like shakeHead override and shake from that body angle too.
+  // drives it ambiently in hangout; follow drives it from the cursor in track mode. Actions like
+  // shakeHead override and play from the body's current angle too.
   const headTurnAnimation = useMemo(() => {
     if (activeAction?.animations[HEAD_TURN_KEY]) return activeAction.animations[HEAD_TURN_KEY];
     const dbg = debugAnimFor(HEAD_TURN_KEY);
     if (dbg) return dbg;
-    return lookAround?.headTurn ?? null;
-  }, [activeAction, debugAnimFor, lookAround]);
+    return follow?.headTurn ?? lookAround?.headTurn ?? null;
+  }, [activeAction, debugAnimFor, follow, lookAround]);
   useCapabilityAnimation(HEAD_TURN_KEY, headTurnAnimation);
 
-  // body.turn has no mode-level idle — the body stays wherever it's last been pointed (rest by
-  // default). Actions / debug / future deliberate body-turn animations drive it.
+  // head.tilt — action > debug > track-mode cursor follow. No hangout idle.
+  const headTiltAnimation = useMemo(() => {
+    if (activeAction?.animations[HEAD_TILT_KEY]) return activeAction.animations[HEAD_TILT_KEY];
+    const dbg = debugAnimFor(HEAD_TILT_KEY);
+    if (dbg) return dbg;
+    return follow?.headTilt ?? null;
+  }, [activeAction, debugAnimFor, follow]);
+  useCapabilityAnimation(HEAD_TILT_KEY, headTiltAnimation);
+
+  // body.turn (full turn — hips + legs included) — action > debug. No mode-level idle; the body stays
+  // wherever it's last been pointed (rest by default). Track uses upperbody.turn instead (below).
   const bodyTurnAnimation = useMemo(() => {
     if (activeAction?.animations[BODY_TURN_KEY]) return activeAction.animations[BODY_TURN_KEY];
     const dbg = debugAnimFor(BODY_TURN_KEY);
@@ -405,6 +473,16 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     return null;
   }, [activeAction, debugAnimFor]);
   useCapabilityAnimation(BODY_TURN_KEY, bodyTurnAnimation);
+
+  // upperbody.turn — action > debug > track-mode cursor follow (a slight upper-body twist under the
+  // head; hips/legs stay planted). No hangout idle.
+  const upperBodyTurnAnimation = useMemo(() => {
+    if (activeAction?.animations[UPPERBODY_TURN_KEY]) return activeAction.animations[UPPERBODY_TURN_KEY];
+    const dbg = debugAnimFor(UPPERBODY_TURN_KEY);
+    if (dbg) return dbg;
+    return follow?.upperTurn ?? null;
+  }, [activeAction, debugAnimFor, follow]);
+  useCapabilityAnimation(UPPERBODY_TURN_KEY, upperBodyTurnAnimation);
 
   // body.bounce + body.lean — gait capabilities driven only by a walk action (or debug). No
   // mode-level idle; they rest when nothing drives them, releasing cleanly after a walk.
@@ -480,13 +558,14 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     if (activeAction?.animations[ANTENNA_WIGGLE_KEY]) return activeAction.animations[ANTENNA_WIGGLE_KEY];
     const dbg = debugAnimFor(ANTENNA_WIGGLE_KEY);
     if (dbg) return dbg;
-    if (mode === "hangout" && !activeAction) return createAntennaWiggleAnimation();
+    if ((mode === "hangout" || mode === "track") && !activeAction) return createAntennaWiggleAnimation();
     return null;
   }, [activeAction, mode, debugAnimFor]);
   useCapabilityAnimation(ANTENNA_WIGGLE_KEY, antennaWiggleAnimation);
 
   return (
     <div
+      ref={rootRef}
       style={{
         position: "relative",
         width: 0,
@@ -576,7 +655,7 @@ function useChestRef(scale: number) {
     (caps: ReadonlyMap<string, number>) => {
       const el = ref.current;
       if (!el) return;
-      const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
+      const bodyTurn = effectiveUpperTurn(caps);
       const signedDistance = (bodyTurn - 0.5) * 2;
       const distance = Math.abs(signedDistance);
       const factor = 1 - distance * (1 - CHEST_TURN_MIN_RATIO);
@@ -612,7 +691,7 @@ function useBodyRef(scale: number) {
     (caps: ReadonlyMap<string, number>) => {
       const el = ref.current;
       if (!el) return;
-      const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
+      const bodyTurn = effectiveUpperTurn(caps);
       const distance = Math.abs(bodyTurn - 0.5) * 2;
       const turnFactor = 1 - distance * (1 - BODY_TURN_RATIO);
 
@@ -1404,8 +1483,8 @@ function useArmRef(scale: number, side: "left" | "right") {
       if (!el) return;
       const isLeft = side === "left";
 
-      // body.turn — shift the entire arm wrapper inward by sliding its edge toward center.
-      const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
+      // upper-body turn — shift the entire arm wrapper inward by sliding its edge toward center.
+      const bodyTurn = effectiveUpperTurn(caps);
       const distance = Math.abs(bodyTurn - 0.5) * 2;
       el.style[side] = `${distance * SHOULDER_TURN_INWARD * scale}px`;
 

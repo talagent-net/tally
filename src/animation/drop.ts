@@ -37,16 +37,20 @@ export type Drop = {
 // the whole MIN..MAX band. Per-limb speed + phase make the four limbs feel independent. Outside
 // the fall it returns 0.5 (the cap then settles to its rest in the component).
 // `speedScale` is the overall thrash-rate knob (defaults to the drop's); jump passes its own.
+// The initial swing DIRECTION is randomized per call (± sign on the sine), so each limb kicks off
+// a different way every time the action fires — re-rolled fresh because createDrop/createJump build
+// new flail closures on each use.
 export function createFlail(seed: number, fallMs: number, speedScale: number = DROP_FLAIL_SPEED): AnimationFn {
   const speed = FLAIL_SPEEDS[seed % FLAIL_SPEEDS.length];
   const phase = FLAIL_PHASES[seed % FLAIL_PHASES.length];
+  const dir = Math.random() < 0.5 ? 1 : -1; // random initial swing direction, fixed for this use
   let t0: number | null = null;
   return (elapsed) => {
     if (t0 === null) t0 = elapsed;
     const t = elapsed - t0;
     if (t <= 0 || t >= fallMs) return 0.5;
     const s = (t / 1000) * speedScale * speed; // overall rate knob × per-limb rate
-    return 0.5 + 0.5 * Math.sin(2 * Math.PI * s + phase); // full [0,1] sweep
+    return 0.5 + dir * 0.5 * Math.sin(2 * Math.PI * s + phase); // full [0,1] sweep, randomized direction
   };
 }
 

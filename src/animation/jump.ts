@@ -21,8 +21,8 @@ const JUMP_LAND_CROUCH = 0.5;          // KNOB: partial landing crouch depth (vs
 const JUMP_LAND_IMPACT_MS = 130;       // landing compress (0→LAND_CROUCH) — fast
 const JUMP_LAND_RECOVER_MS = 300;      // stand up (LAND_CROUCH→0) — slower
 const JUMP_FLAIL_SPEED = 1.5;          // KNOB: arm + leg flail thrash rate while airborne
-const JUMP_HEAD_DOWN_TILT = .36;      // KNOB: head dip during the anticipation crouch (head.tilt below 0.5 = down)
-const JUMP_HEAD_UP_TILT = 0.48;        // KNOB: head lift toward the apex (head.tilt above 0.5 = up)
+const JUMP_HEAD_DOWN_TILT = .48;      // KNOB: head dip during the anticipation crouch (head.tilt below 0.5 = down)
+const JUMP_HEAD_UP_TILT = 0.36;        // KNOB: head lift toward the apex (head.tilt above 0.5 = up)
 
 const NEUTRAL_TILT = 0.5;              // head.tilt rest: 0.5 straight, 0 down, 1 up
 const smoothstep = (t: number) => t * t * (3 - 2 * t);
