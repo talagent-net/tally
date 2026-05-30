@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { colors as defaultColors } from "./colors";
-import { AnimationProvider, useAnimationRenderer, useCapability, useCapabilityAnimation, useConflict } from "./animation/context";
+import { AnimationProvider, useAnimationRenderer, useCapability, useCapabilityAnimation } from "./animation/context";
 import { createBlinkAnimation } from "./animation/blink";
 import { createLookAroundAnimation } from "./animation/lookAround";
 import { createAntennaWiggleAnimation } from "./animation/antennaWiggle";
@@ -58,12 +58,6 @@ const LEG_FLAIL_REST_CAP = (9 - LEG_FLAIL_MIN) / (LEG_FLAIL_MAX - LEG_FLAIL_MIN)
 const ARM_FLAIL_MIN = 20;
 const ARM_FLAIL_MAX = 150;
 const ARM_FLAIL_REST_CAP = (25 - ARM_FLAIL_MIN) / (ARM_FLAIL_MAX - ARM_FLAIL_MIN); // 25 = LEFT_UPPER_ANGLE
-
-// head.tilt, head.turn, and body.turn all squash the head's geometry — head.tilt on the
-// vertical axis, head.turn and body.turn (via the effective-head-turn sum) on the horizontal.
-// Applying any two together looks broken. Declared once via useConflict — the engine handles
-// the smooth handoff between them.
-const HEAD_AXIS_CONFLICT = [HEAD_TILT_KEY, HEAD_TURN_KEY, BODY_TURN_KEY];
 
 // Head renderers compute their "effective turn" from body.turn and head.turn combined.
 // First version: head follows body 1:1 (head.turn capability stays at rest 0.5 by default,
@@ -150,13 +144,10 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   useCapability(LEGS_RIGHT_FLAIL_KEY, LEG_FLAIL_REST_CAP);
   useCapability(BODY_CROUCH_KEY, 0); // 0 = standing; 1 = full crouch (body foreshortens + sinks, head/shoulders follow)
 
-  // head.tilt vs head.turn — the engine will smoothly unwind one when the other gets engaged.
-  useConflict(HEAD_AXIS_CONFLICT);
-
   // Debug overrides — a map of capability key → held value. Each listed capability is driven by
-  // its value (read live via a ref so closures stay stable), independently of the others, so
-  // several non-conflicting capabilities can be pinned at once (e.g. hold body.turn sideways
-  // while scrubbing legs.stride). Order in the useMemos below: action > debug override > mode
+  // its value (read live via a ref so closures stay stable), independently of the others, so any
+  // combination of capabilities can be pinned at once (e.g. hold body.turn sideways while scrubbing
+  // head.tilt). Order in the useMemos below: action > debug override > mode
   // default. A key absent from the map makes debugAnimFor return null, so its mode default applies.
   // Written during render (not in an effect) on purpose: debugAnimFor recomputes when the key
   // SET changes and reads this ref to decide whether to install a capability's animation. If the
@@ -413,11 +404,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     if (dbg) return dbg;
     return null;
   }, [activeAction, debugAnimFor]);
-  // When the active action drives body.turn (e.g. walk), let it override the conflict-release
-  // duration — walk passes 0 so the ambient head pose snaps to neutral and the body turns toward
-  // travel immediately, instead of sliding while still facing the camera during the unwind.
-  const bodyTurnReleaseMs = activeAction?.animations[BODY_TURN_KEY] ? activeAction.releaseMs : undefined;
-  useCapabilityAnimation(BODY_TURN_KEY, bodyTurnAnimation, bodyTurnReleaseMs);
+  useCapabilityAnimation(BODY_TURN_KEY, bodyTurnAnimation);
 
   // body.bounce + body.lean — gait capabilities driven only by a walk action (or debug). No
   // mode-level idle; they rest when nothing drives them, releasing cleanly after a walk.

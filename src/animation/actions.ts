@@ -11,8 +11,7 @@ import { createJump } from "./jump";
 
 // An action is a top-level one-shot: it composes parallel body-part animations under one
 // duration, then mode resumes. Animations are keyed by capability so they slot into the
-// existing engine machinery (and benefit from the conflict system — e.g. shaking head.turn
-// will smoothly release head.tilt if it was active).
+// existing engine machinery; when the action ends, each capability eases back to rest.
 //
 // Most actions are pure gestures: every capability they touch returns to rest when the action
 // ends. `walk` is different — it has a net side effect (the figure ends somewhere new and stays
@@ -23,10 +22,6 @@ import { createJump } from "./jump";
 export type Action = {
   duration: number;
   animations: Record<string, AnimationFn>;
-  // Optional override (ms) for the engine's conflict-release duration when this action's
-  // animations are installed. Lets an action demand an instant handoff (0) instead of waiting out
-  // the default unwind of whatever ambient/conflicting capability it's interrupting.
-  releaseMs?: number;
   locomotion?: {
     direction: WalkDirection;
     travelBodyWidths: number; // horizontal screen travel in body-widths; pixels resolved component-side (needs scale)
@@ -116,7 +111,6 @@ export function createAction(spec: ActionSpec): Action {
       return {
         duration: walk.duration,
         animations: walk.animations,
-        releaseMs: walk.releaseMs,
         locomotion: {
           direction: spec.direction,
           travelBodyWidths: walk.travelBodyWidths,
@@ -135,7 +129,6 @@ export function createAction(spec: ActionSpec): Action {
       return {
         duration: walk.duration,
         animations: walk.animations,
-        releaseMs: walk.releaseMs,
         locomotion: {
           direction: gaitDirection,
           travelBodyWidths: walk.travelBodyWidths,

@@ -37,11 +37,6 @@ const STEPS_PER_BODYWIDTH = 2;
 // 1.0 = feet roughly track the ground.
 const WALK_TRAVEL_PER_BODYWIDTH = 2.2;
 
-// Conflict-release override for the walk's body.turn (passed to the engine). 0 = the ambient head
-// pose snaps to neutral and the body starts turning toward travel IMMEDIATELY, instead of the body
-// sliding while still facing the camera during the engine's default unwind. Raise it for a softer
-// (but overlapping) handoff.
-const WALK_RELEASE_MS = 0;
 const WALK_FACE_TURN = 0.5;        // body.turn offset from 0.5 toward the travel direction (0.5 = full profile)
 const WALK_LEAN = 0.3;             // body.lean offset from 0.5 toward the travel direction (normalized)
 const WALK_LEG_SWING = 0.5;        // legs.stride amplitude around 0.5 (0.5 = full normalized swing both ways)
@@ -67,8 +62,6 @@ export type Walk = {
   // Effective horizontal screen travel in body-widths (distance × WALK_TRAVEL_PER_BODYWIDTH).
   // The component multiplies this by body width × scale to get the body.x pixel displacement.
   travelBodyWidths: number;
-  // Conflict-release override (ms) for installing body.turn — 0 = instant handoff (see WALK_RELEASE_MS).
-  releaseMs: number;
   // Fixed ease-in/ease-out duration (ms) for the body.x slide — the component builds a trapezoidal
   // velocity profile from this (see WALK_ACCEL_MS).
   accelMs: number;
@@ -141,7 +134,6 @@ export function createWalk(direction: WalkDirection, distance: number): Walk {
     rampStartMs,
     rampEndMs,
     travelBodyWidths: dist * WALK_TRAVEL_PER_BODYWIDTH,
-    releaseMs: WALK_RELEASE_MS,
     accelMs: WALK_ACCEL_MS,
     animations: {
       "body.turn": createEnvelope(turnTarget, TURN_NEUTRAL, rampEndMs, duration),

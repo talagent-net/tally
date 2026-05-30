@@ -34,24 +34,13 @@ export function useAnimationRenderer(render: RendererFn): void {
   useEffect(() => engine.registerRenderer(render), [engine, render]);
 }
 
-// Mount/unmount an animation that drives a capability. releaseMs optionally overrides the
-// engine's conflict-release/unwind duration for this animation's install (e.g. 0 for an instant
-// handoff); omitted = engine default.
-export function useCapabilityAnimation(key: string, anim: AnimationFn | null, releaseMs?: number): void {
+// Mount/unmount an animation that drives a capability. When the animation is removed (null or
+// unmount), the engine eases the capability back to rest.
+export function useCapabilityAnimation(key: string, anim: AnimationFn | null): void {
   const engine = useEngine();
   useEffect(() => {
-    engine.setAnimation(key, anim, releaseMs);
+    engine.setAnimation(key, anim);
     return () => engine.setAnimation(key, null);
-  }, [engine, key, anim, releaseMs]);
+  }, [engine, key, anim]);
 }
 
-// Declare a set of capability keys as mutually exclusive. The engine will smoothly unwind any
-// off-rest partner when one of them gets a new animation, and defer the new animation's start
-// until the unwind is complete. Pass a stable array (module-level constant or memoized) — the
-// engine deduplicates registrations anyway, but a stable ref avoids unnecessary effect re-runs.
-export function useConflict(keys: string[]): void {
-  const engine = useEngine();
-  useEffect(() => {
-    engine.registerConflict(keys);
-  }, [engine, keys]);
-}
