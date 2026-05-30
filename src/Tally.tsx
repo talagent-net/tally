@@ -121,8 +121,9 @@ export interface TallyProps {
   mode?: Mode;
   theme?: ColorTheme;
   showAnchor?: boolean;
+  // Optional logo PNG, rendered (mask-tinted in the light theme tone) on top of the solid chest
+  // panel. A single image — the panel itself replaces the old dark outline PNG.
   chestImage?: string;
-  chestOutline?: string;
   // Debug overrides: a map of capability key → held value (0..1). Each listed capability is
   // pinned to its value regardless of mode, bypassing the regular mode animations. Multiple
   // independent capabilities can be held simultaneously.
@@ -150,7 +151,7 @@ export function Tally(props: TallyProps) {
   );
 }
 
-function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, chestOutline, debugOverrides, action, onWalkComplete }: TallyProps) {
+function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, debugOverrides, action, onWalkComplete }: TallyProps) {
   const s = (v: number) => v * scale;
 
   // Capabilities — declared once at the root with their rest values.
@@ -610,7 +611,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
           overflow: "visible",
         }}
       >
-        <Body scale={scale} theme={theme} showAnchor={showAnchor} chestImage={chestImage} chestOutline={chestOutline}>
+        <Body scale={scale} theme={theme} showAnchor={showAnchor} chestImage={chestImage}>
           <Head scale={scale} theme={theme} showAnchor={showAnchor}>
             <LeftEye scale={scale} theme={theme} />
             <RightEye scale={scale} theme={theme} />
@@ -638,12 +639,16 @@ const BODY_BOTTOM = 15;
 const BODY_PIVOT_X = (BODY_W + BODY_OFFSET) / 2;
 const BODY_PIVOT_Y = (BODY_H + BODY_OFFSET) * 0.6;
 const BODY_ROTATION = 0;
-const CHEST_SIZE = 30;             // square — single dimension for both width and height
+const CHEST_SIZE = 30;             // square — single dimension for both width and height (the logo fills this box)
+// Logo outline halo (follows the masked silhouette) in the light palette tone — KNOBS to hand-tweak.
+// One offset, applied in all 8 directions (cardinals + diagonals) via chained drop-shadows.
+const CHEST_LOGO_SHADOW_OFFSET = 1; // outline thickness (unscaled px), same in every direction
+const CHEST_LOGO_SHADOW_BLUR = 0;   // blur radius (unscaled px); 0 = a crisp outline
 const CHEST_TOP_RATIO = 0.25;
-const CHEST_TURN_MIN_RATIO = 0.15;  // chest width fraction at full body turn — foreshortens more aggressively than the body face, since the logo is a forward-facing decal and largely disappears in profile
+const CHEST_TURN_MIN_RATIO = 0.15;  // chest width fraction at full body turn — foreshortens more aggressively than the body face, since it's a forward-facing decal and largely disappears in profile
 const CHEST_TURN_SLIDE = 16;        // unscaled px the chest slides horizontally at full body turn — same direction as the turn
 const CHEST_CROUCH_MIN_RATIO = 0.6; // chest HEIGHT fraction at full crouch — vertical foreshorten (the body.crouch analog of CHEST_TURN_MIN_RATIO for width)
-const CHEST_CROUCH_RISE = 1;        // unscaled px the chest logo slides UP at full crouch (on top of its torso-tracking drop)
+const CHEST_CROUCH_RISE = 1;        // unscaled px the chest panel slides UP at full crouch (on top of its torso-tracking drop)
 const BODY_TURN_RATIO = .84;  // visible body WIDTH fraction at full body turn — matches HEAD_TURN_RATIO for now
 
 // body.crouch tuning. The body face shrinks vertically to CROUCH_HEIGHT_RATIO at full crouch
@@ -773,19 +778,28 @@ function Body({
   theme,
   showAnchor = false,
   chestImage,
-  chestOutline,
   children,
 }: {
   scale: number;
   theme: ColorTheme;
   showAnchor?: boolean;
   chestImage?: string;
-  chestOutline?: string;
   children: React.ReactNode;
 }) {
   const s = (v: number) => v * scale;
   const bodyRef = useBodyRef(scale);
   const chestRef = useChestRef(scale);
+
+  // Chained drop-shadows in all 8 directions at the same offset → a uniform outline halo around the
+  // logo silhouette. (filter applies before mask, so it lives on a wrapper around the masked div.)
+  const chestLogoShadow = [
+    [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1],
+  ]
+    .map(
+      ([dx, dy]) =>
+        `drop-shadow(${s(dx * CHEST_LOGO_SHADOW_OFFSET)}px ${s(dy * CHEST_LOGO_SHADOW_OFFSET)}px ${s(CHEST_LOGO_SHADOW_BLUR)}px ${theme.primaryMid})`,
+    )
+    .join(" ");
 
   const baseRadius = (extra: number) =>
     `${s(BODY_RADIUS_TOP + extra)}px ${s(BODY_RADIUS_TOP + extra)}px ${s(BODY_RADIUS_BOT + extra)}px ${s(BODY_RADIUS_BOT + extra)}px`;
@@ -829,39 +843,32 @@ function Body({
           borderRadius: baseRadius(0),
         }}
       />
-      {(chestImage || chestOutline) && (
-        <div
-          ref={chestRef}
-          style={{
-            position: "absolute",
-            zIndex: 4,
-            top: s(BODY_OFFSET / 2 + BODY_H * CHEST_TOP_RATIO),
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: s(CHEST_SIZE),
-            height: s(CHEST_SIZE),
-          }}
-        >
-          {/* Outline layer — outer image, tinted primaryDark */}
-          {chestOutline && (
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                backgroundColor: theme.primaryMid,
-                WebkitMaskImage: `url(${chestOutline})`,
-                maskImage: `url(${chestOutline})`,
-                WebkitMaskSize: "100% 100%",
-                maskSize: "100% 100%",
-                WebkitMaskRepeat: "no-repeat",
-                maskRepeat: "no-repeat",
-                WebkitMaskPosition: "center",
-                maskPosition: "center",
-              }}
-            />
-          )}
-          {/* Fill layer — inner image, tinted primaryMid */}
-          {chestImage && (
+      {/* Chest — just the logo PNG, mask-tinted in the brightest palette tone and scaled to fill the
+          chest box. No background panel. Foreshortens/slides/crouches via useChestRef. */}
+      <div
+        ref={chestRef}
+        style={{
+          position: "absolute",
+          zIndex: 4,
+          top: s(BODY_OFFSET / 2 + BODY_H * CHEST_TOP_RATIO),
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: s(CHEST_SIZE),
+          height: s(CHEST_SIZE),
+        }}
+      >
+        {chestImage && (
+          // Outer wrapper carries the drop-shadow; inner div carries the mask. The filter must live
+          // on a SEPARATE element from the mask — CSS applies `filter` before `mask`, so a shadow on
+          // the masked element itself gets clipped away by its own mask. Applied to the wrapper, the
+          // shadow follows the already-masked silhouette.
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              filter: chestLogoShadow,
+            }}
+          >
             <div
               style={{
                 position: "absolute",
@@ -877,9 +884,9 @@ function Body({
                 maskPosition: "center",
               }}
             />
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
       {children}
       {showAnchor && <PivotMarker scale={scale} x={BODY_PIVOT_X} y={BODY_PIVOT_Y} />}
     </div>
@@ -1260,6 +1267,7 @@ const EAR_TURN_INWARD_RATIO = 0.25;       // how far inward the ear slides on a 
 const EAR_HIDE_RATE = 3;                  // how quickly the ear disappears (higher = faster)
 const EAR_HIDE_MIN_W = HEAD_OFFSET / 3;   // keep some width when fully hidden — smaller than outline so it stays masked
 const EAR_TILT_SLIDE = 8;                 // vertical slide on full tilt (unscaled px) — ear slides with the gaze direction, no size change
+const EAR_Z_BEHIND = -1;                  // always behind the head outline (cartoon style) — the head silhouette occludes the ear
 
 // Shared shape math — `side` is the "left" or "right" CSS property name.
 function useEarRefShared(scale: number, side: "left" | "right", hideWhenTurnGreater: boolean) {
@@ -1296,8 +1304,9 @@ function useEarRefShared(scale: number, side: "left" | "right", hideWhenTurnGrea
     el.style.width = `${w * scale}px`;
     el.style[side] = `${offset * scale}px`;
     el.style.borderRadius = `${w * EAR_RADIUS_RATIO * scale}px`;
-    // Above the head face so the ear is visible once it slides onto the head.
-    el.style.zIndex = "4";
+    // Behind the head outline (cartoon style) — the head occludes the ear; only the part poking
+    // past the silhouette shows.
+    el.style.zIndex = String(EAR_Z_BEHIND);
 
     // head.tilt — small vertical slide in the gaze direction. No size change, no horizontal
     // change. tilt=1 (look up) → slide up (top decreases); tilt=0 (look down) → slide down.
@@ -1317,7 +1326,7 @@ function LeftEar({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
       ref={earRef}
       style={{
         position: "absolute",
-        zIndex: 4,
+        zIndex: EAR_Z_BEHIND,
         top: s(HEAD_H * EAR_TOP_RATIO),
         left: s(-EAR_REST_OFFSET),
         width: s(EAR_REST_W),
@@ -1338,7 +1347,7 @@ function RightEar({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
       ref={earRef}
       style={{
         position: "absolute",
-        zIndex: 4,
+        zIndex: EAR_Z_BEHIND,
         top: s(HEAD_H * EAR_TOP_RATIO),
         right: s(-EAR_REST_OFFSET),
         width: s(EAR_REST_W),
@@ -1377,8 +1386,7 @@ const ANTENNA_ANGLE = -15;
 const ANTENNA_TURN_ANGLE_DELTA = 8;
 const ANTENNA_TILT_H_RATIO = 0.5;             // height fraction at full tilt — perspective foreshortening of the antenna stick
 const ANTENNA_TILT_SLIDE = 18;                 // vertical slide (unscaled px) of the WHOLE antenna at full tilt — base sinks down too
-const ANTENNA_TILT_Z_FRONT = 6;               // z-index when looking down (antenna swings toward viewer, in front of head)
-const ANTENNA_TILT_Z_BEHIND = -1;             // z-index when looking up (antenna falls behind head outline)
+const ANTENNA_Z_BEHIND = -1;                  // always behind the head outline (cartoon style) — the head occludes the antenna root
 const ANTENNA_WIGGLE_AMPLITUDE_DEG = 25;      // max wiggle rotation offset at antenna.wiggle = 0 or 1 (added to the existing turn-driven angle)
 
 function useAntennaRef(scale: number) {
@@ -1397,12 +1405,10 @@ function useAntennaRef(scale: number) {
     const restAntennaRight = HEAD_OFFSET / 2 + ANTENNA_RIGHT;
     el.style.right = `${((HEAD_W + HEAD_OFFSET) + restAntennaRight - turnShift - baseW) * scale}px`;
 
-    // head.tilt — three effects on the antenna:
+    // head.tilt — two effects on the antenna (it always stays behind the head outline now):
     //   1. foreshortening (height shrinks) — the stick compresses out of the picture plane.
     //   2. whole-antenna slide DOWN — the base sinks toward the head as the crown rotates
     //      out of view. Symmetric at both extremes.
-    //   3. z-index switch — looking down puts the antenna in front of the head; looking up
-    //      swings it behind the head outline.
     // The shrink (1) is bottom-anchored relative to the antenna itself, so its top moves down.
     // The slide (2) adds an additional drop to BOTH ends. Net result at extreme: top moves down
     // by shrink + slide; base moves down by slide.
@@ -1413,7 +1419,6 @@ function useAntennaRef(scale: number) {
     const antennaTiltSlide = tiltDistance * ANTENNA_TILT_SLIDE;
     el.style.height = `${antennaH * scale}px`;
     el.style.top = `${(ANTENNA_TOP + antennaShrink + antennaTiltSlide) * scale}px`;
-    el.style.zIndex = `${tilt < 0.5 ? ANTENNA_TILT_Z_FRONT : ANTENNA_TILT_Z_BEHIND}`;
 
     // Angle: rest lean fades out toward the extremes, replaced by a signed offset
     // pointing in the head's gaze direction (forward lean).
@@ -1442,7 +1447,7 @@ function Antenna({ scale = 1, theme, showAnchor = false }: { scale: number; them
       ref={antennaRef}
       style={{
         position: "absolute",
-        zIndex: showAnchor ? 999 : 0,
+        zIndex: showAnchor ? 999 : ANTENNA_Z_BEHIND,
         top: s(ANTENNA_TOP),
         right: s(HEAD_OFFSET / 2 + ANTENNA_RIGHT),
         width: s(ANTENNA_W),

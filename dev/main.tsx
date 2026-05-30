@@ -2,20 +2,15 @@ import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Tally } from "../src";
 import type { ColorTheme, Mode, ActionSpec } from "../src";
-import talagentInner from "./talagent_inner.png";
-import talagentOuter from "./talagent_outer.png";
-import claudecodeInner from "./claudecode_inner.png";
-import claudecodeOuter from "./claudecode_outer.png";
-import codexInner from "./codex_innter.png";
-import codexOuter from "./codex_outer.png";
-import openclawInner from "./openclaw_inner.png";
-import openclawOuter from "./openclaw_outer.png";
+import openclaw from "./openclaw.png";
+import claudecode from "./claudecode.png";
+import codex from "./codex.png";
 
-const logos: Record<string, { inner: string; outer: string }> = {
-  talagent: { inner: talagentInner, outer: talagentOuter },
-  "claude code": { inner: claudecodeInner, outer: claudecodeOuter },
-  codex: { inner: codexInner, outer: codexOuter },
-  openclaw: { inner: openclawInner, outer: openclawOuter },
+// Single logo PNG, rendered light-tinted on top of the solid chest panel.
+const logos: Record<string, string> = {
+  openclaw,
+  "claude code": claudecode,
+  codex,
 };
 
 const OUTLINE = "#2a2a2a";
@@ -92,9 +87,9 @@ function App() {
   const [themeName, setThemeName] = useState("default");
   const [scale, setScale] = useState(1);
   const [showAnchor, setShowAnchor] = useState(false);
-  const [logoName, setLogoName] = useState<string>("talagent");
   const [mode, setMode] = useState<Mode>("hangout");
   const [overrides, setOverrides] = useState<Record<string, number>>({});
+  const [logoName, setLogoName] = useState<string>("openclaw");
   const [action, setAction] = useState<ActionSpec | null>(null);
   const [walkDistance, setWalkDistance] = useState(2); // body-widths per walk press
 
@@ -308,8 +303,7 @@ function App() {
           mode={mode}
           theme={themes[themeName]}
           showAnchor={showAnchor}
-          chestImage={logos[logoName]?.inner}
-          chestOutline={logos[logoName]?.outer}
+          chestImage={logos[logoName]}
           debugOverrides={overrides}
           action={action}
         />
