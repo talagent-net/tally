@@ -105,6 +105,7 @@ const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi 
 export interface ColorTheme {
   primary: string;
   primaryDark: string;
+  primaryMidDark: string; // a tone between primary and primaryMid (lightness: primaryDark < primary < primaryMidDark < primaryMid)
   primaryMid: string;
   outline: string;
 }
@@ -112,6 +113,7 @@ export interface ColorTheme {
 export const defaultTheme: ColorTheme = {
   primary: defaultColors.primary,
   primaryDark: defaultColors.primaryDark,
+  primaryMidDark: defaultColors.primaryMidDark,
   primaryMid: defaultColors.primaryMid,
   outline: "#2a2a2a",
 };
@@ -639,7 +641,7 @@ const BODY_BOTTOM = 15;
 const BODY_PIVOT_X = (BODY_W + BODY_OFFSET) / 2;
 const BODY_PIVOT_Y = (BODY_H + BODY_OFFSET) * 0.6;
 const BODY_ROTATION = 0;
-const CHEST_SIZE = 30;             // square — single dimension for both width and height (the logo fills this box)
+const CHEST_SIZE = 25;             // square — single dimension for both width and height (the logo fills this box)
 // Logo outline halo (follows the masked silhouette) in the light palette tone — KNOBS to hand-tweak.
 // One offset, applied in all 8 directions (cardinals + diagonals) via chained drop-shadows.
 const CHEST_LOGO_SHADOW_OFFSET = 1; // outline thickness (unscaled px), same in every direction
@@ -797,7 +799,7 @@ function Body({
   ]
     .map(
       ([dx, dy]) =>
-        `drop-shadow(${s(dx * CHEST_LOGO_SHADOW_OFFSET)}px ${s(dy * CHEST_LOGO_SHADOW_OFFSET)}px ${s(CHEST_LOGO_SHADOW_BLUR)}px ${theme.primaryMid})`,
+        `drop-shadow(${s(dx * CHEST_LOGO_SHADOW_OFFSET)}px ${s(dy * CHEST_LOGO_SHADOW_OFFSET)}px ${s(CHEST_LOGO_SHADOW_BLUR)}px ${theme.primaryMidDark})`,
     )
     .join(" ");
 
@@ -873,7 +875,7 @@ function Body({
               style={{
                 position: "absolute",
                 inset: 0,
-                backgroundColor: theme.outline,
+                backgroundColor: theme.primaryDark,
                 WebkitMaskImage: `url(${chestImage})`,
                 maskImage: `url(${chestImage})`,
                 WebkitMaskSize: "100% 100%",
@@ -1072,7 +1074,7 @@ function Head({
           left: s(HEAD_OFFSET / 2),
           width: s(HEAD_W - HEAD_OFFSET / 8),
           height: s(HEAD_H - HEAD_OFFSET / 8),
-          backgroundColor: theme.primaryMid,
+          backgroundColor: theme.primaryMidDark,
           borderRadius: s(HEAD_ROUNDNESS),
         }}
       />
