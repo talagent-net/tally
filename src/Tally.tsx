@@ -918,8 +918,8 @@ function useHeadRef(scale: number) {
     const turnShift = ((HEAD_W + HEAD_OFFSET) * scale - baseW) / 2;
     const lightLeftInset = HEAD_OFFSET / 2;
     const lightSideMargin = HEAD_OFFSET * 9 / 8;
-    const mainLeftInset = HEAD_OFFSET * HEAD_FACE_INSET;
-    const mainSideMargin = HEAD_OFFSET * (2 - HEAD_FACE_INSET);
+    const mainLeftInset = HEAD_OFFSET * HEAD_FACE_INSET + HEAD_MAIN_INSET;
+    const mainSideMargin = HEAD_OFFSET * (2 - HEAD_FACE_INSET) + 2 * HEAD_MAIN_INSET;
 
     // head.tilt — stylized rounded-box rotation. The apparent silhouette foreshortens at the
     // extremes (HEAD_TILT_RATIO < 1). Anchor follows tilt direction:
@@ -936,8 +936,8 @@ function useHeadRef(scale: number) {
     const tiltShift = tilt * ((HEAD_H + HEAD_OFFSET) * scale - baseH);
     const lightTopInset = HEAD_OFFSET / 2;
     const lightVerticalMargin = HEAD_OFFSET * 9 / 8;
-    const mainTopInset = HEAD_OFFSET * HEAD_FACE_INSET;
-    const mainVerticalMargin = HEAD_OFFSET * (2 - HEAD_FACE_INSET);
+    const mainTopInset = HEAD_OFFSET * HEAD_FACE_INSET + HEAD_MAIN_INSET;
+    const mainVerticalMargin = HEAD_OFFSET * (2 - HEAD_FACE_INSET) + 2 * HEAD_MAIN_INSET;
 
     // Border-radius factors, per corner. Both axes are asymmetric:
     //   turn — the TRAILING horizontal side (away from the look direction) grows; the LEADING side
@@ -984,7 +984,18 @@ function useHeadRef(scale: number) {
       headMain.style.height = `${baseH - mainVerticalMargin * scale}px`;
       headMain.style.left = `${turnShift + mainLeftInset * scale}px`;
       headMain.style.top = `${tiltShift + mainTopInset * scale}px`;
-      headMain.style.borderRadius = radiusShorthand((HEAD_ROUNDNESS - HEAD_OFFSET * (1 - HEAD_FACE_INSET)) * scale);
+      headMain.style.borderRadius = radiusShorthand((HEAD_ROUNDNESS + HEAD_OFFSET / 2 - mainLeftInset) * scale);
+    }
+
+    // Shadow layer — the main-face box shifted down-right by HEAD_SHADOW_OFFSET, beneath the face
+    // (z2), so only its bottom-right crescent peeks out (the dark mirror of the top-left highlight).
+    const headShadow = el.children[3] as HTMLElement | null;
+    if (headShadow) {
+      headShadow.style.width = `${baseW - mainSideMargin * scale}px`;
+      headShadow.style.height = `${baseH - mainVerticalMargin * scale}px`;
+      headShadow.style.left = `${turnShift + (mainLeftInset + HEAD_SHADOW_OFFSET) * scale}px`;
+      headShadow.style.top = `${tiltShift + (mainTopInset + HEAD_SHADOW_OFFSET) * scale}px`;
+      headShadow.style.borderRadius = radiusShorthand((HEAD_ROUNDNESS + HEAD_OFFSET / 2 - mainLeftInset) * scale);
     }
   }, [scale]);
   useAnimationRenderer(render);
@@ -997,6 +1008,8 @@ const HEAD_OFFSET = 12;
 const HEAD_ROUNDNESS = 36;
 const HEAD_TOP = -85;
 const HEAD_FACE_INSET = 0.7;
+const HEAD_MAIN_INSET = 2;        // KNOB: extra inset (unscaled px) shrinking the main face on every side, leaving more room for the light + shadow layers around it
+const HEAD_SHADOW_OFFSET = 3;     // KNOB: how far (unscaled px) the shadow layer is shifted down-right under the main face — only its bottom-right crescent shows (primaryDark)
 const HEAD_PIVOT_X = (HEAD_W + HEAD_OFFSET) / 2;
 const HEAD_PIVOT_Y = (HEAD_H + HEAD_OFFSET) * 0.85;
 const HEAD_ROTATION = 0;
@@ -1083,12 +1096,26 @@ function Head({
         style={{
           position: "absolute",
           zIndex: 3,
-          top: s(HEAD_OFFSET * HEAD_FACE_INSET),
-          left: s(HEAD_OFFSET * HEAD_FACE_INSET),
-          width: s(HEAD_W - HEAD_OFFSET * (1 - HEAD_FACE_INSET)),
-          height: s(HEAD_H - HEAD_OFFSET * (1 - HEAD_FACE_INSET)),
+          top: s(HEAD_OFFSET * HEAD_FACE_INSET + HEAD_MAIN_INSET),
+          left: s(HEAD_OFFSET * HEAD_FACE_INSET + HEAD_MAIN_INSET),
+          width: s(HEAD_W - HEAD_OFFSET * (1 - HEAD_FACE_INSET) - 2 * HEAD_MAIN_INSET),
+          height: s(HEAD_H - HEAD_OFFSET * (1 - HEAD_FACE_INSET) - 2 * HEAD_MAIN_INSET),
           background: `linear-gradient(135deg, ${theme.primaryMid} 0%, ${theme.primary} 40%, ${theme.primaryDark} 100%)`,
-          borderRadius: s(HEAD_ROUNDNESS - HEAD_OFFSET * (1 - HEAD_FACE_INSET)),
+          borderRadius: s(HEAD_ROUNDNESS + HEAD_OFFSET / 2 - HEAD_OFFSET * HEAD_FACE_INSET - HEAD_MAIN_INSET),
+        }}
+      />
+      {/* Shadow — beneath the main face (z2), the face box shifted down-right so only its
+          bottom-right crescent shows. The dark mirror of the top-left highlight. */}
+      <div
+        style={{
+          position: "absolute",
+          zIndex: 2,
+          top: s(HEAD_OFFSET * HEAD_FACE_INSET + HEAD_MAIN_INSET + HEAD_SHADOW_OFFSET),
+          left: s(HEAD_OFFSET * HEAD_FACE_INSET + HEAD_MAIN_INSET + HEAD_SHADOW_OFFSET),
+          width: s(HEAD_W - HEAD_OFFSET * (1 - HEAD_FACE_INSET) - 2 * HEAD_MAIN_INSET),
+          height: s(HEAD_H - HEAD_OFFSET * (1 - HEAD_FACE_INSET) - 2 * HEAD_MAIN_INSET),
+          backgroundColor: theme.primaryDark,
+          borderRadius: s(HEAD_ROUNDNESS + HEAD_OFFSET / 2 - HEAD_OFFSET * HEAD_FACE_INSET - HEAD_MAIN_INSET),
         }}
       />
       {children}
