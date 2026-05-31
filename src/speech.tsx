@@ -1,4 +1,6 @@
+import { useCallback, useRef } from "react";
 import type { ColorTheme } from "./Tally";
+import { useAnimationRenderer } from "./animation/context";
 
 // `say` is an OVERLAY, not a body-part action. Unlike the entries in ActionSpec it doesn't drive
 // any 0..1 capability and it doesn't occupy the (single, non-interruptible) action slot — it rides
@@ -52,6 +54,16 @@ const SPEECH_BORDER = 4;
 const SPEECH_TAIL_LEN = 14;      // how far the tail protrudes from the bubble side toward the head
 const SPEECH_TAIL_HALF = 12;     // half the tail's base height (the base is flush against the bubble side)
 
+// Head-follow: the bubble drifts slightly with head motion so it feels attached to Tally. All in
+// unscaled px at full capability deflection (multiplied by `scale` and by the live deflection).
+// Head turn always pulls the bubble CLOSER to the head (inward), never away — with separate
+// magnitudes for the head turning toward the bubble vs away from it.
+const SPEECH_FOLLOW_TURN_TOWARD_PX = 24; // head turning TOWARD the bubble → bubble moves inward (closer)
+const SPEECH_FOLLOW_TURN_AWAY_PX = 24;   // head turning AWAY from the bubble → bubble moves inward (closer)
+const SPEECH_FOLLOW_TILT_PX = 12; // head.tilt up/down → bubble up/down
+const SPEECH_FOLLOW_BOB_Y_PX = 14; // head.bob: right-bob → up, left-bob → down (vertical component)
+const SPEECH_FOLLOW_BOB_X_PX = 14;  // head.bob horizontal: right-bob → inward, left-bob → outward
+
 // Entrance/exit timing. The entrance uses an easeOutBack curve (overshoots past full size then
 // settles) for a springy "pop". The exit is a quick, subtle shrink-and-fade back toward Tally.
 const SPEECH_IN_MS = 240;
@@ -75,6 +87,47 @@ export function SpeechBubble({
 }) {
   const s = (v: number) => v * scale;
   const offset = s(SPEECH_HEAD_HALF_W + SPEECH_GAP);
+
+  // Head-follow. A per-frame renderer translates an outer wrapper (NOT the bubble itself, whose
+  // transform is owned by the entrance/exit keyframes) by a small offset derived from the live head
+  // capabilities, so the bubble drifts with the head. `bubbleDir` is the screen side the bubble
+  // sits on (−1 left of head, +1 right); `inwardSign` is the opposite (toward the head).
+  const followRef = useRef<HTMLDivElement>(null);
+  const bubbleDir = side === "left" ? -1 : 1;
+  const inwardSign = -bubbleDir;
+  const followRender = useCallback(
+    (caps: ReadonlyMap<string, number>) => {
+      const el = followRef.current;
+      if (!el) return;
+      const tilt = caps.get("head.tilt") ?? 0.5;
+      const bob = caps.get("head.bob") ?? 0.5;
+      // Effective head turn = body + upper-body offset + head offset (matches the head renderer),
+      // so the bubble tracks the head's actual visible direction, not just the raw head.turn.
+      const bodyTurn = caps.get("body.turn") ?? 0.5;
+      const upper = caps.get("upperbody.turn") ?? 0.5;
+      const headTurn = caps.get("head.turn") ?? 0.5;
+      const effTurn = Math.max(0, Math.min(1, bodyTurn + (upper - 0.5) + (headTurn - 0.5)));
+
+      // Head turn ALWAYS pulls the bubble inward (closer to the head); only the magnitude differs by
+      // whether the head is turning toward the bubble side or away from it.
+      const turnDefl = effTurn - 0.5; // + = looking right, − = looking left
+      const towardBubble = Math.sign(turnDefl) === bubbleDir;
+      const turnPx = towardBubble ? SPEECH_FOLLOW_TURN_TOWARD_PX : SPEECH_FOLLOW_TURN_AWAY_PX;
+      const turnDx = inwardSign * Math.abs(turnDefl) * 2 * turnPx; // inward in both directions
+
+      const tiltDy = -(tilt - 0.5) * 2 * SPEECH_FOLLOW_TILT_PX;   // look up (tilt>0.5) → move up (−y)
+      const bobDefl = bob - 0.5;                                  // + = right-bob, − = left-bob
+      const bobDy = -bobDefl * 2 * SPEECH_FOLLOW_BOB_Y_PX;        // right-bob → up, left-bob → down
+      // Signed (not abs): right-bob → inward, left-bob → outward.
+      const bobDx = inwardSign * bobDefl * 2 * SPEECH_FOLLOW_BOB_X_PX;
+
+      const dx = (turnDx + bobDx) * scale;
+      const dy = (tiltDy + bobDy) * scale;
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+    },
+    [scale, inwardSign, bubbleDir],
+  );
+  useAnimationRenderer(followRender);
 
   // The tail is a triangle whose flat BASE is flush against the bubble's inner side and whose apex
   // points back at the head. It's drawn as two stacked CSS border-triangles: a larger outline-
@@ -120,6 +173,10 @@ export function SpeechBubble({
         };
 
   return (
+    // Follow wrapper: a 0-size box at the figure origin that the head-follow renderer translates.
+    // The bubble (with its own keyframe transform) lives inside, so the two transforms compose
+    // without fighting.
+    <div ref={followRef} style={{ position: "absolute", top: 0, left: 0, width: 0, height: 0 }}>
     <div
       style={{
         position: "absolute",
@@ -148,7 +205,7 @@ export function SpeechBubble({
         fontWeight: 500,
         whiteSpace: "normal",
         overflowWrap: "break-word", // only break a single over-long token, not every word
-        textAlign: "center",
+        textAlign: "left",
         pointerEvents: "none",
         userSelect: "none",
         // Springy entrance (easeOutBack overshoots then settles); subtle shrink-and-fade exit. Both
@@ -170,6 +227,7 @@ export function SpeechBubble({
       {text}
       <div style={outlineTail} />
       <div style={fillTail} />
+    </div>
     </div>
   );
 }
