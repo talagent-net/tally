@@ -5,6 +5,7 @@ import { createRaiseHandAnimation, RAISE_HAND_DURATION_MS } from "./raiseHand";
 import { createWaveHandAnimation } from "./waveHand";
 import { createGreetHeadBobAnimation } from "./greetHeadBob";
 import { createShrugRaiseAnimation, createShrugHeadBobAnimation, SHRUG_DURATION_MS } from "./shrug";
+import { createHangHeadTiltAnimation, createHangHeadBlinkAnimation, createHangHeadCrouchAnimation, HANG_HEAD_DURATION_MS } from "./hangHead";
 import { createWalk } from "./walk";
 import type { WalkDirection } from "./walk";
 import { createDrop } from "./drop";
@@ -71,6 +72,7 @@ export type ActionSpec = (
   | { name: "jump" }
   | { name: "greet" }
   | { name: "shrug" }
+  | { name: "hangHead" }
 ) & {
   // Opt-in preemption. When this spec is dispatched while another action is in flight AND the active
   // action is a pure gesture, it preempts immediately (and flushes any queued spec) instead of
@@ -94,16 +96,11 @@ export const isPureGesture = (name: ActionName): boolean => !NET_EFFECT_ACTIONS.
 export function createAction(spec: ActionSpec): Action {
   switch (spec.name) {
     case "disagree":
+      // Head shake only (no arms) — the head-turn "no", mirroring agree's head-only nod.
       return {
-        duration: Math.max(SHAKE_HEAD_DURATION_MS, RAISE_HAND_DURATION_MS),
+        duration: SHAKE_HEAD_DURATION_MS,
         animations: {
           "head.turn": createShakeHeadAnimation(),
-          // Both hands raise and wave (forearm at the elbow) in sync with the head shake; the right
-          // arm mirrors the left (the renderer sign-flips the right side).
-          "arms.left.raise": createRaiseHandAnimation(),
-          "arms.left.wave": createWaveHandAnimation(),
-          "arms.right.raise": createRaiseHandAnimation(),
-          "arms.right.wave": createWaveHandAnimation(),
         },
       };
     case "agree":
@@ -137,6 +134,17 @@ export function createAction(spec: ActionSpec): Action {
           "arms.left.raise": createShrugRaiseAnimation(),
           "arms.right.raise": createShrugRaiseAnimation(),
           "head.bob": createShrugHeadBobAnimation(),
+        },
+      };
+    case "hangHead":
+      // Dejected beat — head tilts down + eyes fall to nearly shut, hold, then ease back to rest.
+      // Pure gesture (no translation); head.tilt + eyes.blink only.
+      return {
+        duration: HANG_HEAD_DURATION_MS,
+        animations: {
+          "eyes.blink": createHangHeadBlinkAnimation(),
+          "body.crouch": createHangHeadCrouchAnimation(),
+          "head.tilt": createHangHeadTiltAnimation(),
         },
       };
     case "walk": {

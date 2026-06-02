@@ -88,7 +88,7 @@ const debugCapabilities: { key: string; rest: number }[] = [
   { key: "antenna.wiggle", rest: 0.5 },
 ];
 // Gesture actions fire with a fixed spec; walk takes direction + distance (body-widths).
-const gestures: ActionSpec[] = [{ name: "disagree" }, { name: "agree" }, { name: "greet" }, { name: "shrug" }];
+const gestures: ActionSpec[] = [{ name: "disagree" }, { name: "agree" }, { name: "greet" }, { name: "shrug" }, { name: "hangHead" }];
 
 function App() {
   const [themeName, setThemeName] = useState("default");

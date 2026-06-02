@@ -1592,16 +1592,23 @@ const ANTENNA_ANGLE = -15;
 const ANTENNA_TURN_ANGLE_DELTA = 8;
 const ANTENNA_TILT_H_RATIO = 0.5;             // height fraction at full tilt — perspective foreshortening of the antenna stick
 const ANTENNA_TILT_SLIDE = 18;                 // vertical slide (unscaled px) of the WHOLE antenna at full tilt — base sinks down too
-const ANTENNA_Z_BEHIND = -1;                  // always behind the head outline (cartoon style) — the head occludes the antenna root
+const ANTENNA_Z_BEHIND = -1;                  // behind the head outline (cartoon style) — the head occludes the antenna root, when level or looking up
+const ANTENNA_Z_FRONT = 6;                    // in FRONT of the head face/eyes — when looking DOWN the antenna tips forward over the crown and reads in front
 const ANTENNA_WIGGLE_AMPLITUDE_DEG = 25;      // max wiggle rotation offset at antenna.wiggle = 0 or 1 (added to the existing turn-driven angle)
 
-function useAntennaRef(scale: number) {
+function useAntennaRef(scale: number, showAnchor: boolean) {
   const ref = useRef<HTMLDivElement>(null);
   const render = useCallback((caps: ReadonlyMap<string, number>) => {
     const el = ref.current;
     if (!el) return;
     const turn = effectiveHeadTurn(caps);
-    const tilt = remapTilt(caps.get(HEAD_TILT_KEY) ?? 0.5);
+    const rawTilt = caps.get(HEAD_TILT_KEY) ?? 0.5;
+    const tilt = remapTilt(rawTilt);
+
+    // Z-order flips on the head.tilt ABILITY: looking DOWN (tilt < 0.5) tips the antenna forward over
+    // the crown, so it renders in FRONT of the head; level or looking up keeps it behind (cartoon
+    // occlusion). showAnchor (debug) keeps it on top regardless so the pivot markers stay visible.
+    el.style.zIndex = String(showAnchor ? 999 : rawTilt < 0.5 ? ANTENNA_Z_FRONT : ANTENNA_Z_BEHIND);
 
     // Position: stay glued to the visible head's right edge as it turns AND track the head's
     // top edge as it foreshortens vertically on tilt (antenna sits on the crown).
@@ -1639,14 +1646,14 @@ function useAntennaRef(scale: number) {
     const wiggle = caps.get(ANTENNA_WIGGLE_KEY) ?? 0.5;
     const wiggleAngle = (wiggle - 0.5) * 2 * ANTENNA_WIGGLE_AMPLITUDE_DEG;
     el.style.transform = `rotate(${ANTENNA_ANGLE * (1 - distance) + signedOffset + wiggleAngle}deg)`;
-  }, [scale]);
+  }, [scale, showAnchor]);
   useAnimationRenderer(render);
   return ref;
 }
 
 function Antenna({ scale = 1, theme, showAnchor = false, signal = false }: { scale: number; theme: ColorTheme; showAnchor?: boolean; signal?: boolean }) {
   const s = (v: number) => v * scale;
-  const antennaRef = useAntennaRef(scale);
+  const antennaRef = useAntennaRef(scale, showAnchor);
 
   return (
     <div
