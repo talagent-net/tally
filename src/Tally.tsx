@@ -661,6 +661,22 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   }, [activeAction, debugAnimFor]);
   useCapabilityAnimation(ARMS_LEFT_WAVE_KEY, armsLeftWaveAnimation);
 
+  // arms.right.raise — action > debug. Right-arm mirror of arms.left.raise (the renderer sign-flips
+  // the right side). Required for two-armed gestures (disagree, shrug) — without it the right arm's
+  // raise capability is read by the renderer but never driven, so the right arm stays at rest.
+  const armsRightRaiseAnimation = useMemo(() => {
+    if (activeAction?.animations[ARMS_RIGHT_RAISE_KEY]) return activeAction.animations[ARMS_RIGHT_RAISE_KEY];
+    return debugAnimFor(ARMS_RIGHT_RAISE_KEY);
+  }, [activeAction, debugAnimFor]);
+  useCapabilityAnimation(ARMS_RIGHT_RAISE_KEY, armsRightRaiseAnimation);
+
+  // arms.right.wave — action > debug. Right-arm mirror of arms.left.wave (same fix as right.raise).
+  const armsRightWaveAnimation = useMemo(() => {
+    if (activeAction?.animations[ARMS_RIGHT_WAVE_KEY]) return activeAction.animations[ARMS_RIGHT_WAVE_KEY];
+    return debugAnimFor(ARMS_RIGHT_WAVE_KEY);
+  }, [activeAction, debugAnimFor]);
+  useCapabilityAnimation(ARMS_RIGHT_WAVE_KEY, armsRightWaveAnimation);
+
   // antenna.wiggle — action > debug > hangout's occasional damped wiggles. !activeAction
   // gating mirrors lookAround so actions interrupt cleanly; debug overrides regardless.
   const antennaWiggleAnimation = useMemo(() => {

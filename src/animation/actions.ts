@@ -4,6 +4,7 @@ import { createNodHeadAnimation, NOD_HEAD_DURATION_MS } from "./nodHead";
 import { createRaiseHandAnimation, RAISE_HAND_DURATION_MS } from "./raiseHand";
 import { createWaveHandAnimation } from "./waveHand";
 import { createGreetHeadBobAnimation } from "./greetHeadBob";
+import { createShrugRaiseAnimation, createShrugHeadBobAnimation, SHRUG_DURATION_MS } from "./shrug";
 import { createWalk } from "./walk";
 import type { WalkDirection } from "./walk";
 import { createDrop } from "./drop";
@@ -69,6 +70,7 @@ export type ActionSpec = (
   | { name: "drop"; distance: number }
   | { name: "jump" }
   | { name: "greet" }
+  | { name: "shrug" }
 ) & {
   // Opt-in preemption. When this spec is dispatched while another action is in flight AND the active
   // action is a pure gesture, it preempts immediately (and flushes any queued spec) instead of
@@ -123,6 +125,18 @@ export function createAction(spec: ActionSpec): Action {
           "arms.left.raise": createRaiseHandAnimation(),
           "arms.left.wave": createWaveHandAnimation(),
           "head.bob": createGreetHeadBobAnimation(),
+        },
+      };
+    case "shrug":
+      // "I don't know" — both arms rise to a partial open palms-up pose while the head cocks slightly
+      // to one side, then settle. A pure gesture like agree/greet (no translation, returns to rest);
+      // built from arms.*.raise + head.bob so no shoulder capability is needed.
+      return {
+        duration: SHRUG_DURATION_MS,
+        animations: {
+          "arms.left.raise": createShrugRaiseAnimation(),
+          "arms.right.raise": createShrugRaiseAnimation(),
+          "head.bob": createShrugHeadBobAnimation(),
         },
       };
     case "walk": {
