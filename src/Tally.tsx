@@ -54,7 +54,7 @@ const MAX_HEAD_BOB_DEGREES = 18;
 // how head.tilt etc. keep their pixel/degree tuning at the read site.
 const BODY_BOUNCE_PX = 7 / 64;      // peak vertical lift at body.bounce = 1, as a fraction of body height (× BODY_H)
 const BODY_LEAN_DEG = 7;    // peak lean at body.lean extremes (degrees), signed around 0.5
-const LEG_STRIDE_DEG = 40;   // peak leg rotation at legs.stride extremes (degrees), anti-phase across legs
+// leg stride extension is now per-character (gait.strideDeg → GAIT_STRIDE_DEG); the arm swing stays shared.
 const ARM_STRIDE_DEG = 22;   // peak arm rotation at arms.stride extremes (degrees), anti-phase across arms & counter to legs
 const HAND_WAVE_DEG = 25;   // peak forearm rotation at arms.left.wave extremes (degrees) — the disagree hand-wave
 // Legs: same scheme as the arms — the flail cap maps linearly to an absolute leg angle in
@@ -204,6 +204,9 @@ function resolveRig(a: Anatomy) {
     SHADOW_H: a.global.shadow.height,
     SHADOW_BLUR: a.global.shadow.blur,
     SHADOW_OPACITY: a.global.shadow.opacity,
+    // Gait (per-character behavior — see GaitAnatomy)
+    GAIT_STRIDE_DEG: a.gait.strideDeg,
+    GAIT_WALK_MS: a.gait.walkMsPerBodyWidth,
   };
 }
 type Rig = ReturnType<typeof resolveRig>;
@@ -311,6 +314,10 @@ export interface TallyProps {
   // orthogonal. Defaults to `tally`. Provide a different preset to render a differently-proportioned
   // robot. See ANATOMY_SPEC.md.
   anatomy?: Anatomy;
+  // When the host renders a ground plane behind the figure, set this to clip the shadow to the pixels
+  // AT/BELOW the feet (so it reads as a cast shadow on the floor instead of a soft ellipse that smudges
+  // above the ground line). Default false (full soft shadow, for a plain/no-ground background).
+  groundShadow?: boolean;
 }
 
 const BASE = {
@@ -341,10 +348,10 @@ export function Tally(props: TallyProps) {
   );
 }
 
-function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, debugOverrides, action, onWalkComplete, speech, onSpeechEnd, speechScale = 1 }: TallyProps) {
+function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, debugOverrides, action, onWalkComplete, speech, onSpeechEnd, speechScale = 1, groundShadow = false }: TallyProps) {
   const s = (v: number) => v * scale;
   const rig = useRig();
-  const { BODY_W, ARM_FLAIL_REST_CAP, LEG_FLAIL_REST_CAP, HEAD_HALF_W, HEAD_CENTER_ABOVE_ANCHOR, SPEECH_GAP, SPEECH_MAX_WIDTH } = rig;
+  const { BODY_W, ARM_FLAIL_REST_CAP, LEG_FLAIL_REST_CAP, HEAD_HALF_W, HEAD_CENTER_ABOVE_ANCHOR, SPEECH_GAP, SPEECH_MAX_WIDTH, GAIT_WALK_MS } = rig;
   // Runtime auto-grounding: a measured vertical offset (unscaled units) added to the body so the
   // lowest foot sits exactly on the anchor. Grounding is a rest-pose property of the resolved figure,
   // NOT a per-character config value — it's measured (see the layout effect below), never authored.
@@ -563,8 +570,8 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     }
   }, [action, activate]);
   const activeAction = useMemo(
-    () => (active ? createAction(active.spec) : null),
-    [active],
+    () => (active ? createAction(active.spec, GAIT_WALK_MS) : null),
+    [active, GAIT_WALK_MS],
   );
   useEffect(() => {
     if (!activeAction) return;
@@ -986,7 +993,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
         }}
       >
         {/* Shadow stays at the anchor (horizontal travel only — it does NOT rise/fall with body.y). */}
-        <Shadow scale={scale} theme={theme} />
+        <Shadow scale={scale} theme={theme} groundShadow={groundShadow} />
         {/* Inner wrapper carries VERTICAL travel (body.y drop/jump) — only the figure rises/falls. */}
         <div
           ref={verticalWrapRef}
@@ -2242,7 +2249,7 @@ function useLegRef(scale: number, side: "left" | "right") {
     (caps: ReadonlyMap<string, number>) => {
       const el = ref.current;
       if (!el) return;
-      const { LEFT_LEG_ANGLE, RIGHT_LEG_ANGLE, LEG_W, FOOT_H, LEG_FLAIL_REST_CAP, BODY_W } = rig;
+      const { LEFT_LEG_ANGLE, RIGHT_LEG_ANGLE, LEG_W, FOOT_H, LEG_FLAIL_REST_CAP, BODY_W, GAIT_STRIDE_DEG } = rig;
       const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
       const distance = Math.abs(bodyTurn - 0.5) * 2;
       const isLeft = side === "left";
@@ -2273,7 +2280,7 @@ function useLegRef(scale: number, side: "left" | "right") {
       const legFlailCap = caps.get(isLeft ? LEGS_LEFT_FLAIL_KEY : LEGS_RIGHT_FLAIL_KEY) ?? LEG_FLAIL_REST_CAP;
       const legFlailMag = LEG_FLAIL_MIN + legFlailCap * (LEG_FLAIL_MAX - LEG_FLAIL_MIN);
       const flailDelta = (isLeft ? 1 : -1) * (legFlailMag - LEFT_LEG_ANGLE);
-      const legAngle = restAngle + swingSign * (swing - 0.5) * 2 * LEG_STRIDE_DEG + flailDelta;
+      const legAngle = restAngle + swingSign * (swing - 0.5) * 2 * GAIT_STRIDE_DEG + flailDelta;
 
       // Foot horizontal anchor: centered on the leg (the foot box's center sits on the leg centerline),
       // so the symmetric foot has no left/right lean — a body turn never reveals a wrong-pointing foot.
@@ -2479,9 +2486,10 @@ const SHADOW_DIM_REF_BW = 3;     // lift (in body-widths) at which the fade reac
 
 // The shadow stays pinned to the ground (it's outside the vertical-travel wrapper). The only thing
 // body.y (jump/drop) does to it is FADE: full strength when grounded, slightly dimmer the higher up.
-function Shadow({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
+function Shadow({ scale = 1, theme, groundShadow = false }: { scale: number; theme: ColorTheme; groundShadow?: boolean }) {
   const s = (v: number) => v * scale;
   const { SHADOW_W, SHADOW_H, SHADOW_BLUR, SHADOW_OPACITY, BODY_W } = useRig();
+  const GROUND_DROP = 9; // shadow center sits this many px below the anchor (the feet's ground-contact line)
   const ref = useRef<HTMLDivElement>(null);
   const render = useCallback(
     (caps: ReadonlyMap<string, number>) => {
@@ -2502,7 +2510,7 @@ function Shadow({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
       style={{
         position: "absolute",
         zIndex: -1,
-        bottom: s(-9),
+        bottom: s(-GROUND_DROP),
         left: "50%",
         transform: "translateX(-50%)",
         width: s(SHADOW_W),
@@ -2510,6 +2518,13 @@ function Shadow({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
         backgroundColor: `color-mix(in srgb, ${theme.outline} ${SHADOW_OPACITY * 100}%, transparent)`,
         borderRadius: "50%",
         filter: `blur(${s(SHADOW_BLUR)}px)`,
+        // "ground" mode: clip the shadow to the pixels AT/BELOW the feet contact line (the anchor) so it
+        // doesn't smudge above the ground line. The box sits GROUND_DROP px below the anchor, so the
+        // contact line is s(SHADOW_H − GROUND_DROP) down from the box top; the polygon clips above that,
+        // while reaching far on the sides/bottom so the soft side/bottom blur is preserved.
+        clipPath: groundShadow
+          ? `polygon(-100% ${s(SHADOW_H - GROUND_DROP)}px, 200% ${s(SHADOW_H - GROUND_DROP)}px, 200% 300%, -100% 300%)`
+          : undefined,
       }}
     />
   );

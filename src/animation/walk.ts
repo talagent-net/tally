@@ -112,11 +112,15 @@ function createSwing(steps: number, startMs: number, endMs: number): AnimationFn
   };
 }
 
-export function createWalk(direction: WalkDirection, distance: number): Walk {
+export function createWalk(
+  direction: WalkDirection,
+  distance: number,
+  walkMsPerBodyWidth: number = WALK_MS_PER_BODYWIDTH, // per-character pace (gait); default = today's value
+): Walk {
   const dist = Math.max(0, distance);
   const sign = direction === "right" ? 1 : -1;
 
-  const strideMs = dist * WALK_MS_PER_BODYWIDTH;
+  const strideMs = dist * walkMsPerBodyWidth;
   const rampStartMs = 0;
   const rampEndMs = TURN_IN_MS + strideMs;
   const duration = rampEndMs + SETTLE_MS;

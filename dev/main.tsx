@@ -68,8 +68,11 @@ const characters: Record<string, Anatomy> = {
   Tally: tally,
   Beanpole: {
     ...tally,
+    global: {
+      ...tally.global, shadow: { width: 56, height: 16, blur: 5, opacity: 0.24 },
+    },
     body: { ...tally.body, width: 36, height: 84 },
-    head: { ...tally.head, width: 56, height: 80, bodyOverlap: 11, roundness: 16, turnDepthRatio: 1.2, tiltDepthRatio: .96, tiltRadiusGrow: 1.5 },
+    head: { ...tally.head, width: 56, height: 80, bodyOverlap: 11, roundness: 16, turnDepthRatio: 1.08, tiltDepthRatio: .96, tiltRadiusGrow: 1.5 },
     eye: {
       ...tally.eye, width: 20, height: 20, roundnessRatio: .3,
       topRatio: 0.45,
@@ -85,6 +88,7 @@ const characters: Record<string, Anatomy> = {
     antenna: { ...tally.antenna, height: 24, signalScale: 2 },
     arm: { ...tally.arm, upperWidth: 20, lowerWidth: 20, upperHeight: 52, lowerHeight: 46, upperAngle: 15, lowerAngle: -10 },
     leg: { ...tally.leg, legWidth: 20, legHeight: 64, footWidth: 24, footHeight: 20, legAngle: 3, footAngle: -3 },
+    gait: { ...tally.gait, strideDeg: 24, walkMsPerBodyWidth: 340 }, // tall + lanky: smaller, slower strides
   },
   Tank: {
     ...tally,
@@ -150,9 +154,10 @@ const GROUND_Y = 480; // px from the demo pane's top to the figure's anchor — 
 
 function App() {
   const [themeName, setThemeName] = useState("default");
-  const [characterName, setCharacterName] = useState("Beanpole");
+  const [characterName, setCharacterName] = useState("Tally");
   const [scale, setScale] = useState(1);
   const [showAnchor, setShowAnchor] = useState(false);
+  const [groundShadow, setGroundShadow] = useState(false);
   const [mode, setMode] = useState<Mode>("hangout");
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [logoName, setLogoName] = useState<string>("openclaw");
@@ -248,6 +253,14 @@ function App() {
               onChange={(e) => setShowAnchor(e.target.checked)}
             />
             Anchor
+          </label>
+          <label style={{ fontSize: 14, color: "#666", display: "flex", alignItems: "center", gap: 4 }}>
+            <input
+              type="checkbox"
+              checked={groundShadow}
+              onChange={(e) => setGroundShadow(e.target.checked)}
+            />
+            Ground shadow
           </label>
           <label style={{ fontSize: 14, color: "#666" }}>
             Logo
@@ -432,6 +445,7 @@ function App() {
           anatomy={characters[characterName]}
           theme={themes[themeName]}
           showAnchor={showAnchor}
+          groundShadow={groundShadow}
           chestImage={logos[logoName]}
           debugOverrides={overrides}
           action={action}

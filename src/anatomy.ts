@@ -37,6 +37,8 @@ export interface GlobalAnatomy {
     height: number;
     blur: number;
     opacity: number;
+    // Ground-clip (mask the shadow to below the feet) is NOT here: it depends on whether the host renders
+    // a ground plane behind the figure, so it's a render-context choice — the `groundShadow` prop.
   };
 }
 
@@ -188,6 +190,17 @@ export interface SpeechAnatomy {
   // read-duration timing — is SHARED across characters (behavioral/chrome), so it lives in speech.tsx.
 }
 
+// Per-character BEHAVIOR (motion-tuning), the start of a class we'll formalize later. Today the rest of
+// behavior (gesture angles, stride waveform, etc.) is shared; this is a first beachhead for the bits
+// that genuinely read as character (a tall robot strolls differently than a stocky one).
+export interface GaitAnatomy {
+  /** peak leg swing during a walk step (degrees) — the leg's stride extension. */
+  strideDeg: number;
+  /** walk pace: ms of walk per body-width travelled. Sets the walk duration AND the step cadence
+   *  together (cadence = this ÷ steps), so higher = a slower, more deliberate gait. */
+  walkMsPerBodyWidth: number;
+}
+
 export interface Anatomy {
   global: GlobalAnatomy;
   body: BodyAnatomy;
@@ -198,6 +211,7 @@ export interface Anatomy {
   arm: ArmAnatomy;
   leg: LegAnatomy;
   speech: SpeechAnatomy;
+  gait: GaitAnatomy;
 }
 
 /** The default preset — reproduces today's Tally. */
@@ -228,10 +242,10 @@ export const tally: Anatomy = {
   head: {
     width: 120,
     height: 90,
-    roundness: 36,
+    roundness: 28,
     restRotation: 0,
     pivot: { xFrac: 0.5, yFrac: 0.85 },
-    turnDepthRatio: 0.75,
+    turnDepthRatio: 0.84,
     tiltDepthRatio: 0.92,
     turnRadiusGrow: 1.4,
     tiltRadiusGrow: 1.25,
@@ -252,7 +266,7 @@ export const tally: Anatomy = {
   eye: {
     width: 16,
     height: 28,
-    roundnessRatio: 0.5,
+    roundnessRatio: 0.42,
     pivot: { xFrac: 0.5, yFrac: 0.5 },
     topRatio: 0.55,
     sideRatio: 0.24,
@@ -290,5 +304,9 @@ export const tally: Anatomy = {
   speech: {
     gap: 19,        // head edge → bubble inner edge
     maxWidth: 192,  // text wrap column
+  },
+  gait: {
+    strideDeg: 40,            // leg swing extension (matches today)
+    walkMsPerBodyWidth: 240,  // walk pace (matches today)
   },
 };
