@@ -88,7 +88,10 @@ const characters: Record<string, Anatomy> = {
     antenna: { ...tally.antenna, height: 24, signalScale: 2 },
     arm: { ...tally.arm, upperWidth: 20, lowerWidth: 20, upperHeight: 52, lowerHeight: 46, upperAngle: 15, lowerAngle: -10 },
     leg: { ...tally.leg, legWidth: 20, legHeight: 64, footWidth: 24, footHeight: 20, legAngle: 3, footAngle: -3 },
-    gait: { ...tally.gait, strideDeg: 24, walkMsPerBodyWidth: 340 }, // tall + lanky: smaller, slower strides
+    // tall + lanky: smaller, slower strides; a reserved upper body (narrow arm swing); long legs
+    // that glide further across the ground per walk; a low, gliding bounce but a pronounced lean
+    // into the travel direction (the long frame tips forward).
+    gait: { ...tally.gait, strideDeg: 20, armSwingDeg: 14, bounceHeightRatio: .16, leanDeg: 7, walkMsPerBodyWidth: 480, travelPerBodyWidth: 3.4 },
   },
   Tank: {
     ...tally,
@@ -154,7 +157,7 @@ const GROUND_Y = 480; // px from the demo pane's top to the figure's anchor — 
 
 function App() {
   const [themeName, setThemeName] = useState("default");
-  const [characterName, setCharacterName] = useState("Tally");
+  const [characterName, setCharacterName] = useState("Beanpole");
   const [scale, setScale] = useState(1);
   const [showAnchor, setShowAnchor] = useState(false);
   const [groundShadow, setGroundShadow] = useState(false);

@@ -52,10 +52,10 @@ const MAX_HEAD_BOB_DEGREES = 18;
 
 // Render-side magnitudes for the gait capabilities (normalized value → px / degrees), mirroring
 // how head.tilt etc. keep their pixel/degree tuning at the read site.
-const BODY_BOUNCE_PX = 7 / 64;      // peak vertical lift at body.bounce = 1, as a fraction of body height (× BODY_H)
-const BODY_LEAN_DEG = 7;    // peak lean at body.lean extremes (degrees), signed around 0.5
-// leg stride extension is now per-character (gait.strideDeg → GAIT_STRIDE_DEG); the arm swing stays shared.
-const ARM_STRIDE_DEG = 22;   // peak arm rotation at arms.stride extremes (degrees), anti-phase across arms & counter to legs
+// body.bounce + body.lean magnitudes are now per-character (gait.bounceHeightRatio →
+// GAIT_BOUNCE_RATIO, gait.leanDeg → GAIT_LEAN_DEG), like the leg/arm swing below.
+// leg stride extension + arm swing are now per-character (gait.strideDeg → GAIT_STRIDE_DEG,
+// gait.armSwingDeg → GAIT_ARM_SWING_DEG).
 const HAND_WAVE_DEG = 25;   // peak forearm rotation at arms.left.wave extremes (degrees) — the disagree hand-wave
 // Legs: same scheme as the arms — the flail cap maps linearly to an absolute leg angle in
 // [LEG_FLAIL_MIN, LEG_FLAIL_MAX], cap rests at LEG_FLAIL_REST_CAP (maps to the leg's rest angle,
@@ -206,7 +206,11 @@ function resolveRig(a: Anatomy) {
     SHADOW_OPACITY: a.global.shadow.opacity,
     // Gait (per-character behavior — see GaitAnatomy)
     GAIT_STRIDE_DEG: a.gait.strideDeg,
+    GAIT_ARM_SWING_DEG: a.gait.armSwingDeg,
+    GAIT_BOUNCE_RATIO: a.gait.bounceHeightRatio,
+    GAIT_LEAN_DEG: a.gait.leanDeg,
     GAIT_WALK_MS: a.gait.walkMsPerBodyWidth,
+    GAIT_TRAVEL_PER_BW: a.gait.travelPerBodyWidth,
   };
 }
 type Rig = ReturnType<typeof resolveRig>;
@@ -351,7 +355,7 @@ export function Tally(props: TallyProps) {
 function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, debugOverrides, action, onWalkComplete, speech, onSpeechEnd, speechScale = 1, groundShadow = false }: TallyProps) {
   const s = (v: number) => v * scale;
   const rig = useRig();
-  const { BODY_W, ARM_FLAIL_REST_CAP, LEG_FLAIL_REST_CAP, HEAD_HALF_W, HEAD_CENTER_ABOVE_ANCHOR, SPEECH_GAP, SPEECH_MAX_WIDTH, GAIT_WALK_MS } = rig;
+  const { BODY_W, ARM_FLAIL_REST_CAP, LEG_FLAIL_REST_CAP, HEAD_HALF_W, HEAD_CENTER_ABOVE_ANCHOR, SPEECH_GAP, SPEECH_MAX_WIDTH, GAIT_WALK_MS, GAIT_TRAVEL_PER_BW } = rig;
   // Runtime auto-grounding: a measured vertical offset (unscaled units) added to the body so the
   // lowest foot sits exactly on the anchor. Grounding is a rest-pose property of the resolved figure,
   // NOT a per-character config value — it's measured (see the layout effect below), never authored.
@@ -570,8 +574,8 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     }
   }, [action, activate]);
   const activeAction = useMemo(
-    () => (active ? createAction(active.spec, GAIT_WALK_MS) : null),
-    [active, GAIT_WALK_MS],
+    () => (active ? createAction(active.spec, GAIT_WALK_MS, GAIT_TRAVEL_PER_BW) : null),
+    [active, GAIT_WALK_MS, GAIT_TRAVEL_PER_BW],
   );
   useEffect(() => {
     if (!activeAction) return;
@@ -1105,7 +1109,7 @@ function useBodyRef(scale: number) {
     (caps: ReadonlyMap<string, number>) => {
       const el = ref.current;
       if (!el) return;
-      const { BODY_W, BODY_H, BODY_OFFSET, BODY_TURN_RATIO, BODY_ROTATION } = rig;
+      const { BODY_W, BODY_H, BODY_OFFSET, BODY_TURN_RATIO, BODY_ROTATION, GAIT_BOUNCE_RATIO, GAIT_LEAN_DEG } = rig;
       const bodyTurn = effectiveUpperTurn(caps);
       const distance = Math.abs(bodyTurn - 0.5) * 2;
       const turnFactor = 1 - distance * (1 - BODY_TURN_RATIO);
@@ -1147,8 +1151,8 @@ function useBodyRef(scale: number) {
       // rotation. The shadow is a sibling of Body, so it neither bounces nor leans (stays grounded).
       const bounce = caps.get(BODY_BOUNCE_KEY) ?? 0;
       const lean = caps.get(BODY_LEAN_KEY) ?? 0.5;
-      const leanDeg = (lean - 0.5) * 2 * BODY_LEAN_DEG;
-      el.style.transform = `translateX(-50%) translateY(${-bounce * BODY_BOUNCE_PX * BODY_H * scale}px) rotate(${BODY_ROTATION + leanDeg}deg)`;
+      const leanDeg = (lean - 0.5) * 2 * GAIT_LEAN_DEG;
+      el.style.transform = `translateX(-50%) translateY(${-bounce * GAIT_BOUNCE_RATIO * BODY_H * scale}px) rotate(${BODY_ROTATION + leanDeg}deg)`;
     },
     [scale, rig],
   );
@@ -1995,7 +1999,7 @@ function useArmRef(scale: number, side: "left" | "right") {
     (caps: ReadonlyMap<string, number>) => {
       const el = ref.current;
       if (!el) return;
-      const { ARM_SHOULDER_RATIO, ARM_FLAIL_REST_CAP, LEFT_UPPER_ANGLE, RIGHT_UPPER_ANGLE, LEFT_LOWER_ANGLE, RIGHT_LOWER_ANGLE, BODY_W, BODY_H, BODY_OFFSET } = rig;
+      const { ARM_SHOULDER_RATIO, ARM_FLAIL_REST_CAP, LEFT_UPPER_ANGLE, RIGHT_UPPER_ANGLE, LEFT_LOWER_ANGLE, RIGHT_LOWER_ANGLE, BODY_W, BODY_H, BODY_OFFSET, GAIT_ARM_SWING_DEG } = rig;
       const isLeft = side === "left";
 
       // upper-body turn — shift the entire arm wrapper inward by sliding its edge toward center.
@@ -2017,7 +2021,7 @@ function useArmRef(scale: number, side: "left" | "right") {
       // same-side leg's (legs: left +1 / right -1) so each arm counter-swings its leg.
       const swing = caps.get(ARMS_STRIDE_KEY) ?? 0.5;
       const swingSign = isLeft ? -1 : 1;
-      const swingDelta = swingSign * (swing - 0.5) * 2 * ARM_STRIDE_DEG;
+      const swingDelta = swingSign * (swing - 0.5) * 2 * GAIT_ARM_SWING_DEG;
 
       // *.flail (drop) — per-arm. The cap maps linearly to an absolute upper-arm angle in
       // [ARM_FLAIL_MIN, ARM_FLAIL_MAX]; at its rest cap the arm sits at LEFT_UPPER_ANGLE (rest), so

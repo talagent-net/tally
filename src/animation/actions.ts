@@ -93,7 +93,7 @@ const NET_EFFECT_ACTIONS = new Set<ActionName>(["walk", "come", "drop", "jump"])
 export const isPureGesture = (name: ActionName): boolean => !NET_EFFECT_ACTIONS.has(name);
 
 // Each call creates fresh closures so the action can re-fire from a clean state.
-export function createAction(spec: ActionSpec, walkMsPerBodyWidth?: number): Action {
+export function createAction(spec: ActionSpec, walkMsPerBodyWidth?: number, travelPerBodyWidth?: number): Action {
   switch (spec.name) {
     case "disagree":
       // Head shake only (no arms) — the head-turn "no", mirroring agree's head-only nod.
@@ -148,7 +148,7 @@ export function createAction(spec: ActionSpec, walkMsPerBodyWidth?: number): Act
         },
       };
     case "walk": {
-      const walk = createWalk(spec.direction, spec.distance, walkMsPerBodyWidth);
+      const walk = createWalk(spec.direction, spec.distance, walkMsPerBodyWidth, travelPerBodyWidth);
       return {
         duration: walk.duration,
         animations: walk.animations,
@@ -166,7 +166,7 @@ export function createAction(spec: ActionSpec, walkMsPerBodyWidth?: number): Act
       // walks IN to the anchor. The gait travels TOWARD the anchor — i.e. the opposite direction
       // — so reuse createWalk with the flipped direction; `arrive` makes body.x slide offset→0.
       const gaitDirection: WalkDirection = spec.direction === "left" ? "right" : "left";
-      const walk = createWalk(gaitDirection, spec.distance, walkMsPerBodyWidth);
+      const walk = createWalk(gaitDirection, spec.distance, walkMsPerBodyWidth, travelPerBodyWidth);
       return {
         duration: walk.duration,
         animations: walk.animations,

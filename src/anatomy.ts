@@ -196,9 +196,22 @@ export interface SpeechAnatomy {
 export interface GaitAnatomy {
   /** peak leg swing during a walk step (degrees) — the leg's stride extension. */
   strideDeg: number;
+  /** peak arm swing during a walk step (degrees) — the upper arm's counter-swing to the legs. */
+  armSwingDeg: number;
+  /** peak vertical lift of the body.bounce capability, as a fraction of body height. The walk's
+   *  per-step bounce scales with this, so higher = a bouncier walk. */
+  bounceHeightRatio: number;
+  /** peak body lean of the body.lean capability at its extremes (degrees). The walk's lean into
+   *  the travel direction scales with this, so higher = leans harder into the walk. */
+  leanDeg: number;
   /** walk pace: ms of walk per body-width travelled. Sets the walk duration AND the step cadence
    *  together (cadence = this ÷ steps), so higher = a slower, more deliberate gait. */
   walkMsPerBodyWidth: number;
+  /** horizontal screen travel per body-width of walk, in body-widths. Decoupled from the gait
+   *  cycle (step count + cadence are unchanged), so raising it just covers more ground per walk —
+   *  the legs keep cycling at the same rate, so the feet glide a little. 1.0 = feet roughly track
+   *  the ground. */
+  travelPerBodyWidth: number;
 }
 
 export interface Anatomy {
@@ -306,7 +319,11 @@ export const tally: Anatomy = {
     maxWidth: 192,  // text wrap column
   },
   gait: {
-    strideDeg: 40,            // leg swing extension (matches today)
-    walkMsPerBodyWidth: 240,  // walk pace (matches today)
+    strideDeg: 40,             // leg swing extension (matches today)
+    armSwingDeg: 22,           // arm counter-swing (matches today's ARM_STRIDE_DEG)
+    bounceHeightRatio: 7 / 64, // walk step bounce height (matches today's BODY_BOUNCE_PX)
+    leanDeg: 7,                // walk lean into travel (matches today's BODY_LEAN_DEG)
+    walkMsPerBodyWidth: 240,   // walk pace (matches today)
+    travelPerBodyWidth: 2.2,   // ground covered per walk (matches today's WALK_TRAVEL_PER_BODYWIDTH)
   },
 };

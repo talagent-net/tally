@@ -34,7 +34,7 @@ const STEPS_PER_BODYWIDTH = 2;
 // the gait cycle: it scales ONLY how far body.x slides, leaving duration, step count, and the
 // bounce/swing cadence untouched. Raise it to cover more ground in the same walk (Tally reads as
 // faster across the screen; the legs keep cycling at the same speed, so the feet glide a little).
-// 1.0 = feet roughly track the ground.
+// 1.0 = feet roughly track the ground. Now per-character (gait.travelPerBodyWidth); this is the default.
 const WALK_TRAVEL_PER_BODYWIDTH = 2.2;
 
 const WALK_FACE_TURN = 0.5;        // body.turn offset from 0.5 toward the travel direction (0.5 = full profile)
@@ -59,7 +59,7 @@ export type Walk = {
   // Timing window for the component-driven body.x stride (pixels resolved component-side).
   rampStartMs: number;
   rampEndMs: number;
-  // Effective horizontal screen travel in body-widths (distance × WALK_TRAVEL_PER_BODYWIDTH).
+  // Effective horizontal screen travel in body-widths (distance × travelPerBodyWidth).
   // The component multiplies this by body width × scale to get the body.x pixel displacement.
   travelBodyWidths: number;
   // Fixed ease-in/ease-out duration (ms) for the body.x slide — the component builds a trapezoidal
@@ -115,7 +115,8 @@ function createSwing(steps: number, startMs: number, endMs: number): AnimationFn
 export function createWalk(
   direction: WalkDirection,
   distance: number,
-  walkMsPerBodyWidth: number = WALK_MS_PER_BODYWIDTH, // per-character pace (gait); default = today's value
+  walkMsPerBodyWidth: number = WALK_MS_PER_BODYWIDTH,        // per-character pace (gait); default = today's value
+  travelPerBodyWidth: number = WALK_TRAVEL_PER_BODYWIDTH,    // per-character travel (gait); default = today's value
 ): Walk {
   const dist = Math.max(0, distance);
   const sign = direction === "right" ? 1 : -1;
@@ -137,7 +138,7 @@ export function createWalk(
     duration,
     rampStartMs,
     rampEndMs,
-    travelBodyWidths: dist * WALK_TRAVEL_PER_BODYWIDTH,
+    travelBodyWidths: dist * travelPerBodyWidth,
     accelMs: WALK_ACCEL_MS,
     animations: {
       "body.turn": createEnvelope(turnTarget, TURN_NEUTRAL, rampEndMs, duration),
