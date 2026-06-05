@@ -208,6 +208,7 @@ function resolveRig(a: Anatomy) {
     SHADOW_H: a.global.shadow.height,
     SHADOW_BLUR: a.global.shadow.blur,
     SHADOW_OPACITY: a.global.shadow.opacity,
+    SHADOW_FADE_OUT_BW: a.global.shadow.fadeOutBodyWidths,
     // Gait (per-character behavior — see GaitAnatomy)
     GAIT_STRIDE_DEG: a.gait.strideDeg,
     GAIT_ARM_SWING_DEG: a.gait.armSwingDeg,
@@ -2512,15 +2513,14 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
   );
 }
 
-// Shadow anatomy (width/height/blur/opacity) is resolved in resolveRig().
-const SHADOW_DIM_AMOUNT = 0.55;  // how much the shadow fades at full lift (opacity multiplied by 1 − this)
-const SHADOW_DIM_REF_BW = 3;     // lift (in body-widths) at which the fade reaches its max
+// Shadow anatomy (width/height/blur/opacity/fadeOutBodyWidths) is resolved in resolveRig().
 
 // The shadow stays pinned to the ground (it's outside the vertical-travel wrapper). The only thing
-// body.y (jump/drop) does to it is FADE: full strength when grounded, slightly dimmer the higher up.
+// body.y (jump/drop) does to it is FADE: full strength when grounded, linearly weaker the higher up,
+// reaching fully invisible at SHADOW_FADE_OUT_BW body-widths of lift (and staying invisible above it).
 function Shadow({ scale = 1, theme, groundShadow = false }: { scale: number; theme: ColorTheme; groundShadow?: boolean }) {
   const s = (v: number) => v * scale;
-  const { SHADOW_W, SHADOW_H, SHADOW_BLUR, SHADOW_OPACITY, BODY_W } = useRig();
+  const { SHADOW_W, SHADOW_H, SHADOW_BLUR, SHADOW_OPACITY, SHADOW_FADE_OUT_BW, BODY_W } = useRig();
   const GROUND_DROP = 9; // shadow center sits this many px below the anchor (the feet's ground-contact line)
   const ref = useRef<HTMLDivElement>(null);
   const render = useCallback(
@@ -2528,11 +2528,11 @@ function Shadow({ scale = 1, theme, groundShadow = false }: { scale: number; the
       const el = ref.current;
       if (!el) return;
       const bodyY = caps.get(BODY_Y_KEY) ?? 0; // scaled px; ≤ 0 = airborne (above the ground)
-      const refLift = SHADOW_DIM_REF_BW * BODY_W * scale;
-      const t = refLift > 0 ? Math.min(1, Math.max(0, -bodyY) / refLift) : 0;
-      el.style.opacity = String(1 - t * SHADOW_DIM_AMOUNT);
+      const fadeLift = SHADOW_FADE_OUT_BW * BODY_W * scale; // lift at which opacity hits 0
+      const t = fadeLift > 0 ? Math.min(1, Math.max(0, -bodyY) / fadeLift) : 0;
+      el.style.opacity = String(1 - t); // full at the ground → 0 at (and above) fadeLift
     },
-    [scale, BODY_W],
+    [scale, BODY_W, SHADOW_FADE_OUT_BW],
   );
   useAnimationRenderer(render);
 

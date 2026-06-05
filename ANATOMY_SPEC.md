@@ -90,7 +90,7 @@ deviation in this pass:
 |-------|-------|-------|
 | `outlineThickness` | `6` | **Visible** silhouette stroke (renderer uses 2× internally for container padding). Inherited by Body, Head, Arms, Legs. Ears derive their rest size from it. **Antenna does not use it** (solid stick). |
 | `grounding` | — | The resolve-stack-and-pin-feet step (§2.4). Produces the body's elevation. |
-| `shadow` | `w:80 h:16 blur:5 opacity:0.24` | Soft ground ellipse at the anchor. Scales with the figure. |
+| `shadow` | `w:80 h:16 blur:5 opacity:0.24 fadeOutBodyWidths:4` | Soft ground ellipse at the anchor. Scales with the figure; fades to invisible by `fadeOutBodyWidths` of lift. |
 
 No global light direction — shading is head-only (§4 Head).
 
@@ -174,7 +174,10 @@ logo halo `offset:1`/`blur:0` (an effect).
 | Motion-tuning | `strideDeg:40`, leg flail; `hipTurnInward:12 → bodyW fraction`; `footTrailInward:0`/`footLeadOutward:0` (disabled; → bodyW if re-enabled) |
 
 ### Shadow
-Ground decal at the anchor: `width:80`, `height:16`, `blur:5`, `opacity:0.24`.
+Ground decal at the anchor: `width:80`, `height:16`, `blur:5`, `opacity:0.24`, `fadeOutBodyWidths:4`.
+The decal stays pinned to the ground; the only thing a jump/drop (`body.y`) does to it is fade. Opacity
+ramps linearly from full at the ground to **fully invisible** at `fadeOutBodyWidths` body-widths of lift
+(and stays invisible above that). Measured in body-widths to match the jump apex (`jump.heightBodyWidths`).
 
 ## 5. Portability fixes — absolute px → relative
 

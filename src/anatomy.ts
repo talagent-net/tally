@@ -37,6 +37,10 @@ export interface GlobalAnatomy {
     height: number;
     blur: number;
     opacity: number;
+    /** lift (in body-widths) at which the shadow fades to fully invisible. The shadow's opacity ramps
+     *  linearly from full at the ground (body.y = 0) to 0 at this height, and stays invisible above it.
+     *  Measured in body-widths to match the jump apex knob (jump.heightBodyWidths). */
+    fadeOutBodyWidths: number;
     // Ground-clip (mask the shadow to below the feet) is NOT here: it depends on whether the host renders
     // a ground plane behind the figure, so it's a render-context choice — the `groundShadow` prop.
   };
@@ -257,7 +261,7 @@ export interface Anatomy {
 export const tally: Anatomy = {
   global: {
     outlineThickness: 6, // visible stroke; container padding is 2× (today's BODY_OFFSET etc. = 12)
-    shadow: { width: 80, height: 16, blur: 5, opacity: 0.24 },
+    shadow: { width: 80, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 6 },
   },
   body: {
     width: 52,

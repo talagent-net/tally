@@ -69,7 +69,7 @@ const characters: Record<string, Anatomy> = {
   Beanpole: {
     ...tally,
     global: {
-      ...tally.global, shadow: { width: 56, height: 16, blur: 5, opacity: 0.24 },
+      ...tally.global, shadow: { width: 56, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 8 },
     },
     body: { ...tally.body, width: 36, height: 84 },
     head: { ...tally.head, width: 56, height: 80, bodyOverlap: 11, roundness: 16, turnDepthRatio: 1.08, tiltDepthRatio: .96, tiltRadiusGrow: 1.5 },
@@ -164,7 +164,7 @@ const GROUND_Y = 480; // px from the demo pane's top to the figure's anchor — 
 
 function App() {
   const [themeName, setThemeName] = useState("default");
-  const [characterName, setCharacterName] = useState("Beanpole");
+  const [characterName, setCharacterName] = useState("Tally");
   const [scale, setScale] = useState(1);
   const [showAnchor, setShowAnchor] = useState(false);
   const [groundShadow, setGroundShadow] = useState(false);
