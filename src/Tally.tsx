@@ -111,7 +111,7 @@ function resolveRig(a: Anatomy) {
     BODY_ROTATION: a.body.restRotation,
     BODY_TURN_RATIO: a.body.turnDepthRatio,
     BODY_BOTTOM: bodyBottom, // grounding ESTIMATE (close, for the first paint); runtime auto-grounding in TallyInner refines it to exact
-    CHEST_SIZE: a.body.chest.sizeRatio * a.body.width,
+    CHEST_SIZE: a.body.chest.size, // absolute px — chest image stays the same size regardless of body width
     CHEST_TOP_RATIO: a.body.chest.topRatio,
     CHEST_TURN_MIN_RATIO: a.body.chest.turnMinRatio,
     CHEST_TURN_SLIDE: a.body.chest.turnSlideRatio * a.body.width,
@@ -151,6 +151,7 @@ function resolveRig(a: Anatomy) {
     ANTENNA_RADIUS: a.antenna.radius,
     ANTENNA_ANGLE: a.antenna.restLean,
     ANTENNA_TILT_H_RATIO: a.antenna.tiltHeightRatio,
+    SIGNAL_SCALE: a.antenna.signalScale, // per-character uniform scale of the connecting signal rings
     // Eye
     EYE_W: a.eye.width,
     EYE_H: a.eye.height,
@@ -197,7 +198,6 @@ function resolveRig(a: Anatomy) {
     RIGHT_LEG_ANGLE: -a.leg.legAngle,
     LEFT_FOOT_ANGLE: a.leg.footAngle,
     RIGHT_FOOT_ANGLE: -a.leg.footAngle,
-    FOOT_REST_INSET: OFFSET * 0.25,
     LEG_FLAIL_REST_CAP: (a.leg.legAngle - LEG_FLAIL_MIN) / (LEG_FLAIL_MAX - LEG_FLAIL_MIN),
     // Shadow
     SHADOW_W: a.global.shadow.width,
@@ -1912,9 +1912,12 @@ const SIGNAL_THICKNESS = 3 / 120;    // ring line thickness, fraction of head wi
 // inherit the antenna's transform and ride its wiggle/turn/tilt for free.
 function SignalWaves({ scale, theme }: { scale: number; theme: ColorTheme }) {
   const s = (v: number) => v * scale;
-  const { HEAD_W } = useRig();
-  const min = s(SIGNAL_MIN * HEAD_W);
-  const max = s(SIGNAL_MAX * HEAD_W);
+  const { HEAD_W, SIGNAL_SCALE } = useRig();
+  // The rings are head-relative (× HEAD_W); SIGNAL_SCALE is a per-character uniform multiplier on the
+  // whole signal — diameters AND line thickness — so it reads as the same graphic, just bigger/smaller.
+  const sig = HEAD_W * SIGNAL_SCALE;
+  const min = s(SIGNAL_MIN * sig);
+  const max = s(SIGNAL_MAX * sig);
   // Grow via width/height (NOT transform: scale) so the border stays a constant SIGNAL_THICKNESS as
   // the ring expands. A constant translate(-50%,-50%) keeps each ring centered on the emitter point
   // at every size. fill-mode "both" holds the 0% keyframe (tiny + transparent) during the staggered
@@ -1944,7 +1947,7 @@ function SignalWaves({ scale, theme }: { scale: number; theme: ColorTheme }) {
             top: 0,
             width: max,
             height: max,
-            border: `${s(SIGNAL_THICKNESS * HEAD_W)}px solid ${theme.outline}`,
+            border: `${s(SIGNAL_THICKNESS * sig)}px solid ${theme.outline}`,
             borderRadius: "50%",
             boxSizing: "border-box",
             transform: "translate(-50%, -50%)",
@@ -1958,6 +1961,7 @@ function SignalWaves({ scale, theme }: { scale: number; theme: ColorTheme }) {
 
 // Arm anatomy (upper/lower dims, offset, shoulder anchor, rest angles incl. their right-mirrors)
 // is resolved in resolveRig().
+const ARM_HAND_ROUNDNESS = 0.35;       // forearm's BOTTOM (hand) corner radius ÷ forearm width — slightly flatter than the 0.5 elbow end, to imply a hand. Shared across characters.
 const SHOULDER_TURN_INWARD = 16 / 52;  // motion-tuning: max shoulder inward shift at full body.turn, fraction of body width (× BODY_W)
 // body.crouch arm pose (degrees at full crouch, mirrored per side). Upper arms rotate further
 // OUTWARD so the elbows stick out; forearms rotate INWARD so the hands turn toward the feet.
@@ -2089,7 +2093,8 @@ function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; them
             width: s(ARM_LOWER_W),
             height: s(ARM_LOWER_H),
             backgroundColor: theme.outline,
-            borderRadius: s(ARM_LOWER_W / 2),
+            // Forearm: round top (elbow), slightly flatter bottom (hand) — see ARM_HAND_ROUNDNESS.
+            borderRadius: `${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W * ARM_HAND_ROUNDNESS)}px ${s(ARM_LOWER_W * ARM_HAND_ROUNDNESS)}px`,
             // Elbow pivot: center top
             transformOrigin: `${s(ARM_UPPER_W / 2)}px ${s(ARM_LOWER_W / 2)}px`,
             transform: `rotate(${LEFT_LOWER_ANGLE}deg)`,
@@ -2119,7 +2124,7 @@ function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; them
             width: s(ARM_LOWER_W - ARM_OFFSET),
             height: s(ARM_LOWER_H - ARM_OFFSET),
             backgroundColor: theme.primary,
-            borderRadius: s(ARM_LOWER_W / 2),
+            borderRadius: `${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px ${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px ${s((ARM_LOWER_W - ARM_OFFSET) * ARM_HAND_ROUNDNESS)}px ${s((ARM_LOWER_W - ARM_OFFSET) * ARM_HAND_ROUNDNESS)}px`,
             // Elbow pivot: center top
             transformOrigin: `${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px ${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px`,
             transform: `rotate(${LEFT_LOWER_ANGLE}deg)`,
@@ -2174,7 +2179,8 @@ function RightArm({ scale = 1, theme, showAnchor = false }: { scale: number; the
             width: s(ARM_LOWER_W),
             height: s(ARM_LOWER_H),
             backgroundColor: theme.outline,
-            borderRadius: s(ARM_LOWER_W / 2),
+            // Forearm: round top (elbow), slightly flatter bottom (hand) — see ARM_HAND_ROUNDNESS.
+            borderRadius: `${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W * ARM_HAND_ROUNDNESS)}px ${s(ARM_LOWER_W * ARM_HAND_ROUNDNESS)}px`,
             // Elbow pivot: center top
             transformOrigin: `${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px`,
             transform: `rotate(${RIGHT_LOWER_ANGLE}deg)`,
@@ -2204,7 +2210,7 @@ function RightArm({ scale = 1, theme, showAnchor = false }: { scale: number; the
             width: s(ARM_LOWER_W - ARM_OFFSET),
             height: s(ARM_LOWER_H - ARM_OFFSET),
             backgroundColor: theme.primary,
-            borderRadius: s(ARM_LOWER_W / 2),
+            borderRadius: `${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px ${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px ${s((ARM_LOWER_W - ARM_OFFSET) * ARM_HAND_ROUNDNESS)}px ${s((ARM_LOWER_W - ARM_OFFSET) * ARM_HAND_ROUNDNESS)}px`,
             // Elbow pivot: center top
             transformOrigin: `${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px ${s((ARM_LOWER_W - ARM_OFFSET) / 2)}px`,
             transform: `rotate(${RIGHT_LOWER_ANGLE}deg)`,
@@ -2221,8 +2227,7 @@ function RightArm({ scale = 1, theme, showAnchor = false }: { scale: number; the
 // Leg + foot anatomy (dims, offset, hip inset/tuck, rest splay angles incl. right-mirrors, foot
 // rest inset derived from the outline) is resolved in resolveRig().
 const HIP_TURN_INWARD = 12 / 52;     // motion-tuning: max hip inward shift at full body.turn, fraction of body width (× BODY_W)
-const FOOT_TRAIL_INWARD = 0;    // motion-tuning: TRAILING foot inward slide at full body.turn, fraction of body width (× BODY_W); disabled
-const FOOT_LEAD_OUTWARD = 0;    // motion-tuning: LEADING foot outward slide at full body.turn, fraction of body width (× BODY_W); disabled
+const FOOT_SOLE_ROUNDNESS = 0.25;    // foot SOLE (bottom) corner radius ÷ foot width — shared shoe shape (top corners domed at 0.5)
 
 // Leg renderer — hip-inward shift + foot horizontal slide. Feet move in opposite local
 // directions so they don't cross:
@@ -2237,10 +2242,21 @@ function useLegRef(scale: number, side: "left" | "right") {
     (caps: ReadonlyMap<string, number>) => {
       const el = ref.current;
       if (!el) return;
-      const { LEFT_LEG_ANGLE, RIGHT_LEG_ANGLE, LEG_FLAIL_REST_CAP, FOOT_REST_INSET, BODY_W } = rig;
+      const { LEFT_LEG_ANGLE, RIGHT_LEG_ANGLE, LEG_W, FOOT_H, LEG_FLAIL_REST_CAP, BODY_W } = rig;
       const bodyTurn = caps.get(BODY_TURN_KEY) ?? 0.5;
       const distance = Math.abs(bodyTurn - 0.5) * 2;
       const isLeft = side === "left";
+
+      // Depth z-order: turning right (body.turn > 0.5) rotates the body's LEFT side toward the viewer,
+      // so the left leg rides on top of the right (mirror for turning left). The NEAR leg LIFTS to z3
+      // (above the other leg and the body's z2 shadow, still below the body face z4 so its hip stays
+      // tucked); the FAR leg and BOTH legs at neutral stay at z2 — on top of the shadow, so every leg's
+      // inner blue reads in front of the body outline, never swallowed behind it. z3 momentarily ties
+      // the arms (also z3), but only for the forward leg mid-turn, where overlap is rare and the forward
+      // leg reading on top is fine. Setting z-index makes the wrapper a stacking context (whole leg as a
+      // unit); the flip is at the neutral 0.5 point where the legs are splayed apart, so it's seamless.
+      const isNear = isLeft ? bodyTurn > 0.5 : bodyTurn < 0.5;
+      el.style.zIndex = isNear ? "3" : "2";
 
       // Hip inward shift — slide the leg wrapper's edge toward body center as body.turn departs 0.5.
       el.style[side] = `${distance * HIP_TURN_INWARD * BODY_W * scale}px`;
@@ -2259,16 +2275,9 @@ function useLegRef(scale: number, side: "left" | "right") {
       const flailDelta = (isLeft ? 1 : -1) * (legFlailMag - LEFT_LEG_ANGLE);
       const legAngle = restAngle + swingSign * (swing - 0.5) * 2 * LEG_STRIDE_DEG + flailDelta;
 
-      // Foot slide combines trailing-forward + leading-pullback contributions. Only one
-      // contribution is non-zero at a time (a leg is either trailing or leading, not both).
-      const trailingDistance = isLeft
-        ? Math.max(0, bodyTurn - 0.5) * 2   // LeftLeg trails when body.turn > 0.5
-        : Math.max(0, 0.5 - bodyTurn) * 2;  // RightLeg trails when body.turn < 0.5
-      const leadingDistance = isLeft
-        ? Math.max(0, 0.5 - bodyTurn) * 2   // LeftLeg leads when body.turn < 0.5
-        : Math.max(0, bodyTurn - 0.5) * 2;  // RightLeg leads when body.turn > 0.5
-      const slide = (trailingDistance * FOOT_TRAIL_INWARD - leadingDistance * FOOT_LEAD_OUTWARD) * BODY_W;
-      const footInset = (FOOT_REST_INSET + slide) * scale;
+      // Foot horizontal anchor: centered on the leg (the foot box's center sits on the leg centerline),
+      // so the symmetric foot has no left/right lean — a body turn never reveals a wrong-pointing foot.
+      const footInset = ((LEG_W - FOOT_H) / 2) * scale;
 
       // Two upper-leg layers (outer outline + inner face) — each has the foot as its
       // firstElementChild. Apply the swing rotation to each layer and update both feet together.
@@ -2323,13 +2332,18 @@ function LeftLeg({ scale = 1, theme, showAnchor = false }: { scale: number; them
           data-tally-foot=""
           style={{
             position: "absolute",
-            top: s(LEG_H - FOOT_H + LEG_OFFSET / 2),
-            left: s(LEG_OFFSET * .5),
+            // Anchored about the foot's OWN geometric center (transformOrigin = box center): the foot is
+            // a symmetric capsule sitting centered on the leg, so it has no left/right direction. `top`
+            // is shifted by (FOOT_H−FOOT_W)/2 so the ankle (now the box center) stays where it was.
+            top: s(LEG_H - (FOOT_H + FOOT_W) / 2 + LEG_OFFSET / 2),
+            left: s((LEG_W - FOOT_H) / 2),
             width: s(FOOT_H),
             height: s(FOOT_W),
-            transformOrigin: `${s(LEG_W / 2)}px ${s(FOOT_H / 2)}px`,
+            transformOrigin: `${s(FOOT_H / 2)}px ${s(FOOT_W / 2)}px`,
             backgroundColor: theme.outline,
-            borderRadius: `${s(FOOT_H * 0.5)}px ${s(FOOT_H * 0.25)}px ${s(FOOT_H * 0.25)}px ${s(FOOT_H * 0.5)}px`,
+            // Shoe shape: domed top corners (0.5), flatter sole corners (FOOT_SOLE_ROUNDNESS). Mirrored
+            // vs the right foot, since the two feet lay flat by OPPOSITE ±90° rotations.
+            borderRadius: `${s(FOOT_H * 0.5)}px ${s(FOOT_H * FOOT_SOLE_ROUNDNESS)}px ${s(FOOT_H * FOOT_SOLE_ROUNDNESS)}px ${s(FOOT_H * 0.5)}px`,
             transform: `rotate(${LEFT_FOOT_ANGLE + 90}deg)`,
           }}
         />
@@ -2353,18 +2367,18 @@ function LeftLeg({ scale = 1, theme, showAnchor = false }: { scale: number; them
         <div
           style={{
             position: "absolute",
-            top: s(LEG_H - FOOT_H + LEG_OFFSET / 2),
-            left: s(LEG_OFFSET),
+            top: s(LEG_H - (FOOT_H + FOOT_W) / 2 + LEG_OFFSET / 2),
+            left: s((LEG_W - FOOT_H) / 2),
             width: s(FOOT_H - LEG_OFFSET),
             height: s(FOOT_W - LEG_OFFSET),
             backgroundColor: theme.primary,
-            borderRadius: `${s((FOOT_H - LEG_OFFSET) * 0.5)}px ${s((FOOT_H - LEG_OFFSET) * 0.25)}px ${s((FOOT_H - LEG_OFFSET) * 0.25)}px ${s((FOOT_H - LEG_OFFSET) * 0.5)}px`,
-            // Ankle pivot: inner-leg center x (matches the outer foot's LEG_W-based pivot, inset by the outline)
-            transformOrigin: `${s((LEG_W - LEG_OFFSET) / 2)}px ${s((FOOT_H - LEG_OFFSET) / 2)}px`,
+            borderRadius: `${s((FOOT_H - LEG_OFFSET) * 0.5)}px ${s((FOOT_H - LEG_OFFSET) * FOOT_SOLE_ROUNDNESS)}px ${s((FOOT_H - LEG_OFFSET) * FOOT_SOLE_ROUNDNESS)}px ${s((FOOT_H - LEG_OFFSET) * 0.5)}px`,
+            // Rotates about its own geometric center; sole corners flatter than the domed top.
+            transformOrigin: `${s((FOOT_H - LEG_OFFSET) / 2)}px ${s((FOOT_W - LEG_OFFSET) / 2)}px`,
             transform: `rotate(${LEFT_FOOT_ANGLE + 90}deg)`,
           }}
         >
-          {showAnchor && <PivotMarker scale={scale} x={(FOOT_H - LEG_OFFSET) / 2} y={(FOOT_H - LEG_OFFSET / 2) / 2} />}
+          {showAnchor && <PivotMarker scale={scale} x={(FOOT_H - LEG_OFFSET) / 2} y={(FOOT_W - LEG_OFFSET) / 2} />}
         </div>
         {showAnchor && <PivotMarker scale={scale} x={(LEG_W - LEG_OFFSET) / 2} y={(LEG_W - LEG_OFFSET) / 2} />}
       </div>
@@ -2409,13 +2423,14 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
           data-tally-foot=""
           style={{
             position: "absolute",
-            top: s(LEG_H - FOOT_H + LEG_OFFSET / 2),
-            right: s(LEG_OFFSET),
+            // Symmetric capsule centered about its own geometric center (see LeftLeg) → no direction.
+            top: s(LEG_H - (FOOT_H + FOOT_W) / 2 + LEG_OFFSET / 2),
+            right: s((LEG_W - FOOT_H) / 2),
             width: s(FOOT_H),
             height: s(FOOT_W),
-            transformOrigin: `${s(FOOT_H - LEG_W / 2)}px ${s(FOOT_H / 2)}px`,
+            transformOrigin: `${s(FOOT_H / 2)}px ${s(FOOT_W / 2)}px`,
             backgroundColor: theme.outline,
-            borderRadius: `${s(FOOT_H * 0.25)}px ${s(FOOT_H * 0.5)}px ${s(FOOT_H * 0.5)}px ${s(FOOT_H * 0.25)}px`,
+            borderRadius: `${s(FOOT_H * FOOT_SOLE_ROUNDNESS)}px ${s(FOOT_H * 0.5)}px ${s(FOOT_H * 0.5)}px ${s(FOOT_H * FOOT_SOLE_ROUNDNESS)}px`,
             transform: `rotate(${RIGHT_FOOT_ANGLE - 90}deg)`,
           }}
         />
@@ -2439,18 +2454,18 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
         <div
           style={{
             position: "absolute",
-            top: s(LEG_H - FOOT_H + LEG_OFFSET / 2),
-            right: s(LEG_OFFSET),
+            top: s(LEG_H - (FOOT_H + FOOT_W) / 2 + LEG_OFFSET / 2),
+            right: s((LEG_W - FOOT_H) / 2),
             width: s(FOOT_H - LEG_OFFSET),
             height: s(FOOT_W - LEG_OFFSET),
             backgroundColor: theme.primary,
-            borderRadius: `${s((FOOT_H - LEG_OFFSET) * 0.25)}px ${s((FOOT_H - LEG_OFFSET) * 0.5)}px ${s((FOOT_H - LEG_OFFSET) * 0.5)}px ${s((FOOT_H - LEG_OFFSET) * 0.25)}px`,
-            // Ankle pivot: inner-leg center (from the right, matching the outer foot's LEG_W-based pivot, inset by the outline)
-            transformOrigin: `${s((FOOT_H - LEG_OFFSET) - (LEG_W - LEG_OFFSET) / 2)}px ${s((FOOT_H - LEG_OFFSET) / 2)}px`,
+            borderRadius: `${s((FOOT_H - LEG_OFFSET) * FOOT_SOLE_ROUNDNESS)}px ${s((FOOT_H - LEG_OFFSET) * 0.5)}px ${s((FOOT_H - LEG_OFFSET) * 0.5)}px ${s((FOOT_H - LEG_OFFSET) * FOOT_SOLE_ROUNDNESS)}px`,
+            // Rotates about its own geometric center; sole corners flatter than the domed top.
+            transformOrigin: `${s((FOOT_H - LEG_OFFSET) / 2)}px ${s((FOOT_W - LEG_OFFSET) / 2)}px`,
             transform: `rotate(${RIGHT_FOOT_ANGLE - 90}deg)`,
           }}
         >
-          {showAnchor && <PivotMarker scale={scale} x={(FOOT_H - LEG_OFFSET) / 2} y={(FOOT_H - LEG_OFFSET / 2) / 2} />}
+          {showAnchor && <PivotMarker scale={scale} x={(FOOT_H - LEG_OFFSET) / 2} y={(FOOT_W - LEG_OFFSET) / 2} />}
         </div>
         {showAnchor && <PivotMarker scale={scale} x={(LEG_W - LEG_OFFSET) / 2} y={(LEG_W - LEG_OFFSET) / 2} />}
       </div>

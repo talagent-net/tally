@@ -42,8 +42,9 @@ export interface GlobalAnatomy {
 
 /** The chest logo decal — a sub-part of the body (the logo image itself comes from a prop). */
 export interface ChestDecal {
-  /** box size ÷ body width */
-  sizeRatio: number;
+  /** decal box size in px — ABSOLUTE (not body-relative), so the chest image is the same size across
+   *  characters regardless of body width */
+  size: number;
   /** vertical placement ÷ body height */
   topRatio: number;
   /** visible width fraction at full body turn (depth foreshorten) */
@@ -109,6 +110,9 @@ export interface AntennaAnatomy {
   rightRatio: number;
   /** stick height fraction at full head tilt (depth foreshorten) */
   tiltHeightRatio: number;
+  /** uniform scale of the connecting-mode signal rings emitted from the tip (ring diameters AND line
+   *  thickness, all of which are otherwise head-relative). 1 = default; <1 shrinks, >1 enlarges. */
+  signalScale: number;
 }
 
 export interface EyeAnatomy {
@@ -166,6 +170,7 @@ export interface LegAnatomy {
   /** rest-pose splay for the LEFT side (right = negation); the foot's ±90° lay-flat is structural */
   legAngle: number;
   footAngle: number;
+  // foot sole roundness (bottom corners vs the domed top) is a shared constant, not per-character.
   /** horizontal hip placement ÷ body width (stance width) */
   hipInsetRatio: number;
   /** how far the hip tucks up into the body top, as a fraction of body height (× bodyH). */
@@ -210,7 +215,7 @@ export const tally: Anatomy = {
     pivot: { xFrac: 0.5, yFrac: 0.6 },
     turnDepthRatio: 0.84,
     chest: {
-      sizeRatio: 25 / 52,
+      size: 25,
       topRatio: 0.25,
       turnMinRatio: 0.15,
       crouchMinRatio: 0.6,
@@ -242,6 +247,7 @@ export const tally: Anatomy = {
     baseInset: 10, // base roots 10px into the crown (today: top −28 + height 38)
     rightRatio: 18 / 120, // in from the head's right edge, as a fraction of head width
     tiltHeightRatio: 0.5,
+    signalScale: 1, // connecting-mode signal rings at default (head-relative) size
   },
   eye: {
     width: 16,
