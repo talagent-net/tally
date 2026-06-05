@@ -204,6 +204,10 @@ export interface GaitAnatomy {
   /** peak body lean of the body.lean capability at its extremes (degrees). The walk's lean into
    *  the travel direction scales with this, so higher = leans harder into the walk. */
   leanDeg: number;
+  /** how far the figure drops from its grounded height while walking, in scaled px (actual px at
+   *  scale 1). Held flat through the stride and eased in/out with the lean, so the lean's pivot
+   *  doesn't float the feet off the ground. 0 = no drop. */
+  walkDropOffset: number;
   /** walk pace: ms of walk per body-width travelled. Sets the walk duration AND the step cadence
    *  together (cadence = this ÷ steps), so higher = a slower, more deliberate gait. */
   walkMsPerBodyWidth: number;
@@ -212,6 +216,26 @@ export interface GaitAnatomy {
    *  the legs keep cycling at the same rate, so the feet glide a little. 1.0 = feet roughly track
    *  the ground. */
   travelPerBodyWidth: number;
+}
+
+// Per-character JUMP behavior — the vertical hop. Sibling of GaitAnatomy (walk behavior); kept
+// separate because a jump isn't gait. The flail waveform itself is shared with the drop action;
+// only the airborne thrash RATE is tuned here (the drop keeps its own, faster rate).
+export interface JumpAnatomy {
+  /** apex height of a jump, in body-widths. */
+  heightBodyWidths: number;
+  /** thrash rate of the four-limb flail while airborne — a multiplier on the shared flail cadence.
+   *  Distinct from the drop's flail speed (they share the waveform, not the rate). */
+  flailSpeed: number;
+}
+
+// Per-character DROP behavior — the free-fall descent + landing. Sibling of JumpAnatomy. The flail
+// waveform is shared with the jump (createFlail); only the fall's thrash RATE is tuned here, kept
+// separate from the jump's so the two actions can read differently (the drop is faster by default).
+export interface DropAnatomy {
+  /** thrash rate of the four-limb flail during the fall — a multiplier on the shared flail cadence.
+   *  Distinct from the jump's flail speed (they share the waveform, not the rate). */
+  flailSpeed: number;
 }
 
 export interface Anatomy {
@@ -225,6 +249,8 @@ export interface Anatomy {
   leg: LegAnatomy;
   speech: SpeechAnatomy;
   gait: GaitAnatomy;
+  jump: JumpAnatomy;
+  drop: DropAnatomy;
 }
 
 /** The default preset — reproduces today's Tally. */
@@ -323,7 +349,15 @@ export const tally: Anatomy = {
     armSwingDeg: 22,           // arm counter-swing (matches today's ARM_STRIDE_DEG)
     bounceHeightRatio: 7 / 64, // walk step bounce height (matches today's BODY_BOUNCE_PX)
     leanDeg: 7,                // walk lean into travel (matches today's BODY_LEAN_DEG)
+    walkDropOffset: 0,         // scaled-px drop while walking (0 = today's behavior, no drop)
     walkMsPerBodyWidth: 240,   // walk pace (matches today)
     travelPerBodyWidth: 2.2,   // ground covered per walk (matches today's WALK_TRAVEL_PER_BODYWIDTH)
+  },
+  jump: {
+    heightBodyWidths: 4,  // apex height (matches today's JUMP_HEIGHT_BODYWIDTHS)
+    flailSpeed: 1.5,      // airborne flail rate (matches today's JUMP_FLAIL_SPEED)
+  },
+  drop: {
+    flailSpeed: 2.5,      // fall flail rate (matches today's DROP_FLAIL_SPEED)
   },
 };

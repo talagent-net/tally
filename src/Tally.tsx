@@ -37,6 +37,10 @@ const BODY_X_KEY = "body.x";
 const BODY_Y_KEY = "body.y"; // net vertical position (scaled px) on the locomotion wrapper — the drop free-fall descent
 const BODY_BOUNCE_KEY = "body.bounce";
 const BODY_LEAN_KEY = "body.lean";
+// Walk sink — a hold-high gait envelope (0 at rest → 1 through the stride) that nudges the figure
+// DOWN by gait.walkDropOffset scaled px during a walk, so the lean's pivot-lift doesn't float the
+// feet off the ground. Walk-only and transient, synced to body.lean's envelope.
+const BODY_SINK_KEY = "body.sink";
 const LEGS_STRIDE_KEY = "legs.stride";
 const ARMS_STRIDE_KEY = "arms.stride";
 // Per-limb frantic-flail capabilities (drop free-fall). Independent per limb — they break the
@@ -209,8 +213,14 @@ function resolveRig(a: Anatomy) {
     GAIT_ARM_SWING_DEG: a.gait.armSwingDeg,
     GAIT_BOUNCE_RATIO: a.gait.bounceHeightRatio,
     GAIT_LEAN_DEG: a.gait.leanDeg,
+    GAIT_WALK_DROP: a.gait.walkDropOffset,
     GAIT_WALK_MS: a.gait.walkMsPerBodyWidth,
     GAIT_TRAVEL_PER_BW: a.gait.travelPerBodyWidth,
+    // Jump (per-character behavior — see JumpAnatomy)
+    JUMP_HEIGHT_BW: a.jump.heightBodyWidths,
+    JUMP_FLAIL_SPEED: a.jump.flailSpeed,
+    // Drop (per-character behavior — see DropAnatomy)
+    DROP_FLAIL_SPEED: a.drop.flailSpeed,
   };
 }
 type Rig = ReturnType<typeof resolveRig>;
@@ -355,7 +365,7 @@ export function Tally(props: TallyProps) {
 function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, debugOverrides, action, onWalkComplete, speech, onSpeechEnd, speechScale = 1, groundShadow = false }: TallyProps) {
   const s = (v: number) => v * scale;
   const rig = useRig();
-  const { BODY_W, ARM_FLAIL_REST_CAP, LEG_FLAIL_REST_CAP, HEAD_HALF_W, HEAD_CENTER_ABOVE_ANCHOR, SPEECH_GAP, SPEECH_MAX_WIDTH, GAIT_WALK_MS, GAIT_TRAVEL_PER_BW } = rig;
+  const { BODY_W, ARM_FLAIL_REST_CAP, LEG_FLAIL_REST_CAP, HEAD_HALF_W, HEAD_CENTER_ABOVE_ANCHOR, SPEECH_GAP, SPEECH_MAX_WIDTH, GAIT_WALK_MS, GAIT_TRAVEL_PER_BW, JUMP_HEIGHT_BW, JUMP_FLAIL_SPEED, DROP_FLAIL_SPEED } = rig;
   // Runtime auto-grounding: a measured vertical offset (unscaled units) added to the body so the
   // lowest foot sits exactly on the anchor. Grounding is a rest-pose property of the resolved figure,
   // NOT a per-character config value — it's measured (see the layout effect below), never authored.
@@ -380,6 +390,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   useCapability(BODY_Y_KEY, 0);      // vertical position in scaled px — the drop free-fall descent (0 = anchor)
   useCapability(BODY_BOUNCE_KEY, 0);    // 0 = grounded; 1 = peak of a walk step bounce
   useCapability(BODY_LEAN_KEY, 0.5); // 0.5 = upright; 0/1 = lean left/right into travel
+  useCapability(BODY_SINK_KEY, 0);   // 0 = grounded height; 1 = full walk drop (× gait.walkDropOffset)
   useCapability(LEGS_STRIDE_KEY, 0.5);// 0.5 = neutral stance; 0/1 = legs at opposite ends of a step (anti-phase)
   useCapability(ARMS_STRIDE_KEY, 0.5);// 0.5 = arms at rest; 0/1 = arms at opposite ends of a swing (anti-phase, counter to legs)
   useCapability(ARMS_LEFT_FLAIL_KEY, ARM_FLAIL_REST_CAP);  // rest cap → arm at its rest angle when not flailing
@@ -574,8 +585,8 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     }
   }, [action, activate]);
   const activeAction = useMemo(
-    () => (active ? createAction(active.spec, GAIT_WALK_MS, GAIT_TRAVEL_PER_BW) : null),
-    [active, GAIT_WALK_MS, GAIT_TRAVEL_PER_BW],
+    () => (active ? createAction(active.spec, GAIT_WALK_MS, GAIT_TRAVEL_PER_BW, JUMP_HEIGHT_BW, JUMP_FLAIL_SPEED, DROP_FLAIL_SPEED) : null),
+    [active, GAIT_WALK_MS, GAIT_TRAVEL_PER_BW, JUMP_HEIGHT_BW, JUMP_FLAIL_SPEED, DROP_FLAIL_SPEED],
   );
   useEffect(() => {
     if (!activeAction) return;
@@ -826,6 +837,12 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     return debugAnimFor(BODY_LEAN_KEY);
   }, [activeAction, debugAnimFor]);
   useCapabilityAnimation(BODY_LEAN_KEY, bodyLeanAnimation);
+
+  const bodySinkAnimation = useMemo(() => {
+    if (activeAction?.animations[BODY_SINK_KEY]) return activeAction.animations[BODY_SINK_KEY];
+    return debugAnimFor(BODY_SINK_KEY);
+  }, [activeAction, debugAnimFor]);
+  useCapabilityAnimation(BODY_SINK_KEY, bodySinkAnimation);
 
   const legsStrideAnimation = useMemo(() => {
     if (activeAction?.animations[LEGS_STRIDE_KEY]) return activeAction.animations[LEGS_STRIDE_KEY];
@@ -1109,7 +1126,7 @@ function useBodyRef(scale: number) {
     (caps: ReadonlyMap<string, number>) => {
       const el = ref.current;
       if (!el) return;
-      const { BODY_W, BODY_H, BODY_OFFSET, BODY_TURN_RATIO, BODY_ROTATION, GAIT_BOUNCE_RATIO, GAIT_LEAN_DEG } = rig;
+      const { BODY_W, BODY_H, BODY_OFFSET, BODY_TURN_RATIO, BODY_ROTATION, GAIT_BOUNCE_RATIO, GAIT_LEAN_DEG, GAIT_WALK_DROP } = rig;
       const bodyTurn = effectiveUpperTurn(caps);
       const distance = Math.abs(bodyTurn - 0.5) * 2;
       const turnFactor = 1 - distance * (1 - BODY_TURN_RATIO);
@@ -1151,8 +1168,13 @@ function useBodyRef(scale: number) {
       // rotation. The shadow is a sibling of Body, so it neither bounces nor leans (stays grounded).
       const bounce = caps.get(BODY_BOUNCE_KEY) ?? 0;
       const lean = caps.get(BODY_LEAN_KEY) ?? 0.5;
+      const sink = caps.get(BODY_SINK_KEY) ?? 0;
       const leanDeg = (lean - 0.5) * 2 * GAIT_LEAN_DEG;
-      el.style.transform = `translateX(-50%) translateY(${-bounce * GAIT_BOUNCE_RATIO * BODY_H * scale}px) rotate(${BODY_ROTATION + leanDeg}deg)`;
+      // bounce lifts (−), the walk sink drops (+) by a flat scaled-px offset so the lean's pivot
+      // doesn't float the feet; both compose into the body's own vertical transform.
+      const bounceLiftPx = -bounce * GAIT_BOUNCE_RATIO * BODY_H * scale;
+      const sinkDropPx = sink * GAIT_WALK_DROP * scale;
+      el.style.transform = `translateX(-50%) translateY(${bounceLiftPx + sinkDropPx}px) rotate(${BODY_ROTATION + leanDeg}deg)`;
     },
     [scale, rig],
   );

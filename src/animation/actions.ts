@@ -93,7 +93,14 @@ const NET_EFFECT_ACTIONS = new Set<ActionName>(["walk", "come", "drop", "jump"])
 export const isPureGesture = (name: ActionName): boolean => !NET_EFFECT_ACTIONS.has(name);
 
 // Each call creates fresh closures so the action can re-fire from a clean state.
-export function createAction(spec: ActionSpec, walkMsPerBodyWidth?: number, travelPerBodyWidth?: number): Action {
+export function createAction(
+  spec: ActionSpec,
+  walkMsPerBodyWidth?: number,
+  travelPerBodyWidth?: number,
+  jumpHeightBodyWidths?: number,
+  jumpFlailSpeed?: number,
+  dropFlailSpeed?: number,
+): Action {
   switch (spec.name) {
     case "disagree":
       // Head shake only (no arms) — the head-turn "no", mirroring agree's head-only nod.
@@ -182,8 +189,9 @@ export function createAction(spec: ActionSpec, walkMsPerBodyWidth?: number, trav
     }
     case "drop": {
       // Vertical mirror of come: free-fall from `distance` above and land on the anchor. The gait
-      // is frantic per-limb flail (during the fall) + a landing crouch; the descent is component-side.
-      const d = createDrop(spec.distance);
+      // is frantic per-limb flail (during the fall, rate per-character) + a landing crouch; the
+      // descent is component-side.
+      const d = createDrop(spec.distance, dropFlailSpeed);
       return {
         duration: d.duration,
         animations: d.animations,
@@ -193,8 +201,9 @@ export function createAction(spec: ActionSpec, walkMsPerBodyWidth?: number, trav
     }
     case "jump": {
       // Vertical hop, no net displacement: anticipation crouch → spring → parabolic arc → partial
-      // landing crouch. Fixed height (knob lives in jump.ts). Flail applies only while airborne.
-      const j = createJump();
+      // landing crouch. Height + airborne flail rate are per-character (jump anatomy); flail applies
+      // only while airborne.
+      const j = createJump(jumpHeightBodyWidths, jumpFlailSpeed);
       return {
         duration: j.duration,
         animations: j.animations,

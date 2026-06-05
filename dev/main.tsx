@@ -91,7 +91,9 @@ const characters: Record<string, Anatomy> = {
     // tall + lanky: smaller, slower strides; a reserved upper body (narrow arm swing); long legs
     // that glide further across the ground per walk; a low, gliding bounce but a pronounced lean
     // into the travel direction (the long frame tips forward).
-    gait: { ...tally.gait, strideDeg: 20, armSwingDeg: 14, bounceHeightRatio: .16, leanDeg: 7, walkMsPerBodyWidth: 480, travelPerBodyWidth: 3.4 },
+    gait: { ...tally.gait, strideDeg: 20, armSwingDeg: 14, bounceHeightRatio: .12, leanDeg: 7, walkMsPerBodyWidth: 480, travelPerBodyWidth: 3.4, walkDropOffset: 2 },
+    jump: { ...tally.jump, heightBodyWidths: 6, flailSpeed: 1.0 },
+    drop: { ...tally.drop, flailSpeed: 1.5 }
   },
   Tank: {
     ...tally,
@@ -99,6 +101,8 @@ const characters: Record<string, Anatomy> = {
     head: { ...tally.head, width: 138, height: 106, roundness: 46 },
     arm: { ...tally.arm, upperWidth: 28, lowerWidth: 28, upperHeight: 40, lowerHeight: 32 },
     leg: { ...tally.leg, legWidth: 28, legHeight: 30, footWidth: 38 },
+    jump: { ...tally.jump, heightBodyWidths: 2.5, flailSpeed: 1.0 }, // heavy: low hop, slow lumbering flail
+    drop: { ...tally.drop, flailSpeed: 1.5 }, // heavy: slow, lumbering fall flail
   },
   Buglet: {
     ...tally,
@@ -120,6 +124,8 @@ const characters: Record<string, Anatomy> = {
     head: { ...tally.head, width: 96, height: 74 },
     arm: { ...tally.arm, upperHeight: 40, lowerHeight: 32 },
     leg: { ...tally.leg, legHeight: 28 },
+    jump: { ...tally.jump, heightBodyWidths: 6, flailSpeed: 2.5 }, // small + springy: high hop, frantic flail
+    drop: { ...tally.drop, flailSpeed: 3.5 }, // small + springy: frantic, buzzy fall flail
   },
 };
 
@@ -137,6 +143,7 @@ const debugCapabilities: { key: string; rest: number }[] = [
   { key: "upperbody.turn", rest: 0.5 },
   { key: "body.bounce", rest: 0 },
   { key: "body.lean", rest: 0.5 },
+  { key: "body.sink", rest: 0 },
   { key: "body.crouch", rest: 0 },
   { key: "legs.stride", rest: 0.5 },
   { key: "arms.stride", rest: 0.5 },

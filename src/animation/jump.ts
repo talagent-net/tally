@@ -13,14 +13,14 @@ import { createFlail } from "./drop";
 // This is the scale-independent half (timing + crouch/flail). The vertical pixel arc (body.y) is
 // resolved component-side from `peakBodyWidths` + the air timing this returns.
 
-const JUMP_HEIGHT_BODYWIDTHS = 4;    // KNOB: fixed apex height in body-widths
+const JUMP_HEIGHT_BODYWIDTHS = 4;    // KNOB: apex height in body-widths. Now per-character (jump.heightBodyWidths); this is the default.
 const JUMP_AIR_MS_PER_BODYWIDTH = 150; // air time per body-width of height (taller jump → longer hang)
 const JUMP_CROUCH_MS = 220;            // anticipation crouch-down (0→1, full)
 const JUMP_SPRING_MS = 110;            // spring/extension (crouch 1→0) at launch — overlaps the ascent
 const JUMP_LAND_CROUCH = 0.5;          // KNOB: partial landing crouch depth (vs the full 1.0 anticipation)
 const JUMP_LAND_IMPACT_MS = 130;       // landing compress (0→LAND_CROUCH) — fast
 const JUMP_LAND_RECOVER_MS = 300;      // stand up (LAND_CROUCH→0) — slower
-const JUMP_FLAIL_SPEED = 1.5;          // KNOB: arm + leg flail thrash rate while airborne
+const JUMP_FLAIL_SPEED = 1.5;          // KNOB: arm + leg flail thrash rate while airborne. Now per-character (jump.flailSpeed); this is the default.
 const JUMP_HEAD_DOWN_TILT = .32;      // KNOB: head dip during the anticipation crouch (head.tilt below 0.5 = down)
 const JUMP_HEAD_UP_TILT = 0.16;        // KNOB: head lift toward the apex (head.tilt above 0.5 = up)
 
@@ -76,8 +76,11 @@ function createJumpHeadTilt(airStartMs: number, airMs: number): AnimationFn {
   };
 }
 
-export function createJump(): Jump {
-  const peakBodyWidths = JUMP_HEIGHT_BODYWIDTHS;
+export function createJump(
+  heightBodyWidths: number = JUMP_HEIGHT_BODYWIDTHS, // per-character apex height (jump); default = today's value
+  flailSpeed: number = JUMP_FLAIL_SPEED,             // per-character airborne flail rate (jump); default = today's value
+): Jump {
+  const peakBodyWidths = heightBodyWidths;
   const airStartMs = JUMP_CROUCH_MS;
   const airMs = Math.max(1, peakBodyWidths * JUMP_AIR_MS_PER_BODYWIDTH);
   const flailStartMs = airStartMs + JUMP_SPRING_MS; // flail only once the legs have extended
@@ -94,10 +97,10 @@ export function createJump(): Jump {
       "body.crouch": createJumpCrouch(airStartMs, airMs),
       "head.tilt": createJumpHeadTilt(airStartMs, airMs),
       // Reuse the drop's flail; its oscillation spans the airborne window, at jump's own speed.
-      "arms.left.flail": createFlail(0, flailEndMs - flailStartMs, JUMP_FLAIL_SPEED),
-      "arms.right.flail": createFlail(1, flailEndMs - flailStartMs, JUMP_FLAIL_SPEED),
-      "legs.left.flail": createFlail(2, flailEndMs - flailStartMs, JUMP_FLAIL_SPEED),
-      "legs.right.flail": createFlail(3, flailEndMs - flailStartMs, JUMP_FLAIL_SPEED),
+      "arms.left.flail": createFlail(0, flailEndMs - flailStartMs, flailSpeed),
+      "arms.right.flail": createFlail(1, flailEndMs - flailStartMs, flailSpeed),
+      "legs.left.flail": createFlail(2, flailEndMs - flailStartMs, flailSpeed),
+      "legs.right.flail": createFlail(3, flailEndMs - flailStartMs, flailSpeed),
     },
   };
 }

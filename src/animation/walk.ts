@@ -46,6 +46,7 @@ const TURN_NEUTRAL = 0.5;
 const LEAN_NEUTRAL = 0.5;
 const SWING_NEUTRAL = 0.5;
 const BOUNCE_REST = 0;
+const BODY_SINK_REST = 0; // grounded height; the sink envelope holds at 1 through the stride
 
 const smoothstep = (t: number) => t * t * (3 - 2 * t);
 const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
@@ -143,6 +144,10 @@ export function createWalk(
     animations: {
       "body.turn": createEnvelope(turnTarget, TURN_NEUTRAL, rampEndMs, duration),
       "body.lean": createEnvelope(leanTarget, LEAN_NEUTRAL, rampEndMs, duration),
+      // body.sink — hold-high envelope (rest 0 → 1 through the stride), synced to body.lean's
+      // ramp/hold/settle. The component multiplies it by gait.walkDropOffset (scaled px) so the
+      // figure drops a flat amount while walking, countering the lean's pivot-lift.
+      "body.sink": createEnvelope(1, BODY_SINK_REST, rampEndMs, duration),
       "body.bounce": createBounce(steps, TURN_IN_MS, rampEndMs),
       "legs.stride": createSwing(steps, TURN_IN_MS, rampEndMs),
       // Same swing waveform as the legs; the arm renderer applies the opposite sign per side so the

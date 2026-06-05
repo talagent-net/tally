@@ -16,6 +16,7 @@ const DROP_IMPACT_MS = 160;             // landing compress (0→1 crouch) — f
 const DROP_RECOVER_MS = 360;            // stand up (1→0 crouch) — slower
 // FLAIL SPEED — multiplier on how fast the arms/legs thrash, INDEPENDENT of fall speed/distance.
 // Scales the flail oscillation frequencies; the fade-in/out envelope still spans the whole fall.
+// Now per-character (drop.flailSpeed); this is the default.
 const DROP_FLAIL_SPEED = 2.5;
 
 // Per-limb flail: each limb oscillates the FULL [0,1] cap range (→ full MIN↔MAX rotation) at its
@@ -69,7 +70,10 @@ function createLandingCrouch(fallMs: number): AnimationFn {
   };
 }
 
-export function createDrop(distance: number): Drop {
+export function createDrop(
+  distance: number,
+  flailSpeed: number = DROP_FLAIL_SPEED, // per-character fall flail rate (drop); default = today's value
+): Drop {
   const dist = Math.max(0, distance);
   const fallMs = Math.max(1, dist * DROP_FALL_MS_PER_BODYWIDTH);
   const landMs = DROP_IMPACT_MS + DROP_RECOVER_MS;
@@ -79,10 +83,10 @@ export function createDrop(distance: number): Drop {
     offsetBodyWidths: dist * DROP_OFFSET_PER_BODYWIDTH,
     animations: {
       "body.crouch": createLandingCrouch(fallMs),
-      "arms.left.flail": createFlail(0, fallMs),
-      "arms.right.flail": createFlail(1, fallMs),
-      "legs.left.flail": createFlail(2, fallMs),
-      "legs.right.flail": createFlail(3, fallMs),
+      "arms.left.flail": createFlail(0, fallMs, flailSpeed),
+      "arms.right.flail": createFlail(1, fallMs, flailSpeed),
+      "legs.left.flail": createFlail(2, fallMs, flailSpeed),
+      "legs.right.flail": createFlail(3, fallMs, flailSpeed),
     },
   };
 }
