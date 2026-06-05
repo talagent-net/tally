@@ -95,6 +95,10 @@ function resolveRig(a: Anatomy) {
     (a.leg.footHeight - a.leg.legWidth / 2) * Math.sin(footTheta) +
     (a.leg.footWidth - a.leg.footHeight / 2) * Math.cos(footTheta) +
     FOOT_GROUND_CALIB;
+  // Shared locals: grounding-estimate body bottom and neck-anchored head top — also feed the derived
+  // speech/track head-center anchor below.
+  const bodyBottom = a.leg.legHeight - a.leg.hipTuckRatio * a.body.height + footDrop;
+  const headTop = a.head.bodyOverlap - (a.head.height + OFFSET);
   return {
     // Body
     BODY_W: a.body.width,
@@ -106,7 +110,7 @@ function resolveRig(a: Anatomy) {
     BODY_PIVOT_Y: (a.body.height + OFFSET) * a.body.pivot.yFrac,
     BODY_ROTATION: a.body.restRotation,
     BODY_TURN_RATIO: a.body.turnDepthRatio,
-    BODY_BOTTOM: a.leg.legHeight - a.leg.hipTuckRatio * a.body.height + footDrop, // grounding ESTIMATE (close, for the first paint); runtime auto-grounding in TallyInner refines it to exact
+    BODY_BOTTOM: bodyBottom, // grounding ESTIMATE (close, for the first paint); runtime auto-grounding in TallyInner refines it to exact
     CHEST_SIZE: a.body.chest.sizeRatio * a.body.width,
     CHEST_TOP_RATIO: a.body.chest.topRatio,
     CHEST_TURN_MIN_RATIO: a.body.chest.turnMinRatio,
@@ -120,7 +124,13 @@ function resolveRig(a: Anatomy) {
     HEAD_H: a.head.height,
     HEAD_OFFSET: OFFSET,
     HEAD_ROUNDNESS: a.head.roundness,
-    HEAD_TOP: a.head.bodyOverlap - (a.head.height + OFFSET), // neck-anchored: derive top so any head height keeps the neck rooted in the body
+    HEAD_TOP: headTop, // neck-anchored: derive top so any head height keeps the neck rooted in the body
+    // Speech bubble + track-mode head anchor — DERIVED from the head geometry (the bubble parks at the
+    // real head's side edge and vertical center, so it tracks any proportions). gap + maxWidth authored.
+    HEAD_HALF_W: (a.head.width + OFFSET) / 2,
+    HEAD_CENTER_ABOVE_ANCHOR: bodyBottom + (a.body.height + OFFSET) - headTop - (a.head.height + OFFSET) / 2,
+    SPEECH_GAP: a.speech.gap,
+    SPEECH_MAX_WIDTH: a.speech.maxWidth,
     HEAD_LIGHT_INSET: OFFSET / 2,
     HEAD_LIGHT_MARGIN: OFFSET,
     HEAD_MAIN_INSET: OT * (1 + a.head.shading.highlightRatio),
@@ -146,6 +156,8 @@ function resolveRig(a: Anatomy) {
     EYE_H: a.eye.height,
     EYE_TOP_RATIO: a.eye.topRatio,
     EYE_SIDE_RATIO: a.eye.sideRatio,
+    EYE_TURN_CLOSER_INSET: a.eye.turnCloserInset,
+    EYE_TURN_FURTHER_INSET: a.eye.turnFurtherInset,
     EYE_ROUNDNESS_RATIO: a.eye.roundnessRatio,
     PUPIL_W: a.eye.width - 2 * a.eye.pupilInset,
     PUPIL_H: a.eye.height - 2 * a.eye.pupilInset,
@@ -160,7 +172,6 @@ function resolveRig(a: Anatomy) {
     EAR_REST_W: OFFSET,
     EAR_REST_OFFSET: OFFSET / 2,
     EAR_RADIUS_RATIO: a.ear.roundnessRatio,
-    EAR_TURN_INWARD_RATIO: a.ear.turnInwardRatio,
     EAR_HIDE_MIN_W: OFFSET / 3,
     // Arm
     ARM_UPPER_W: a.arm.upperWidth,
@@ -226,12 +237,12 @@ const effectiveUpperTurn = (caps: ReadonlyMap<string, number>): number => {
 
 export type Mode = "hangout" | "track" | "connecting" | "debug";
 
-// `track` mode: the head follows the cursor. The head's screen center sits ~TRACK_HEAD_ABOVE_ANCHOR
-// unscaled px above the anchor (BODY_BOTTOM + body height + HEAD_TOP − half the head) and the figure
-// is centered on the anchor horizontally — so we resolve the head point from the root anchor rect.
+// `track` mode: the head follows the cursor. The head's screen center sits HEAD_CENTER_ABOVE_ANCHOR
+// unscaled px above the anchor (derived in the rig from the body/head stack) and the figure is
+// centered on the anchor horizontally — so we resolve the head point from the root anchor rect.
 // Cursor offset is normalized by a range in body-widths (full deflection at the range edge, clamped)
-// and scaled by the per-axis max deflection from neutral (0.5).
-const TRACK_HEAD_ABOVE_ANCHOR = 125; // unscaled px the head center sits above the anchor
+// and scaled by the per-axis max deflection from neutral (0.5). The head-center anchor is DERIVED in
+// the rig (HEAD_CENTER_ABOVE_ANCHOR — the same value the speech bubble uses), so it tracks any head.
 const TRACK_TURN_RANGE_BW = 6;       // cursor horizontal distance (body-widths) for full turn deflection
 const TRACK_TILT_RANGE_BW = 4;       // cursor vertical distance (body-widths) for full tilt deflection
 const TRACK_TURN_MAX = 0.15;          // max effective head turn from 0.5 (0.5 = full sideways profile; <0.5 keeps the face visible)
@@ -308,10 +319,22 @@ const BASE = {
 };
 
 export function Tally(props: TallyProps) {
-  const rig = useMemo(() => resolveRig(props.anatomy ?? tally), [props.anatomy]);
+  const anatomy = props.anatomy ?? tally;
+  const rig = useMemo(() => resolveRig(anatomy), [anatomy]);
+  // Remount the engine + figure whenever the anatomy object changes. Hot-swapping a running animation
+  // engine's renderers onto a new rig in place proved unreliable — the engine kept applying the previous
+  // rig even though React re-rendered with the new one. A character is conceptually a NEW figure, so a
+  // clean remount (fresh engine, fresh renderers/refs bound to the new proportions) is both correct and
+  // simpler. Motion resets on switch, which is the right behavior for swapping characters.
+  const remountKey = useRef(0);
+  const prevAnatomy = useRef(anatomy);
+  if (prevAnatomy.current !== anatomy) {
+    prevAnatomy.current = anatomy;
+    remountKey.current += 1;
+  }
   return (
     <RigContext.Provider value={rig}>
-      <AnimationProvider>
+      <AnimationProvider key={remountKey.current}>
         <TallyInner {...props} />
       </AnimationProvider>
     </RigContext.Provider>
@@ -321,7 +344,7 @@ export function Tally(props: TallyProps) {
 function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, debugOverrides, action, onWalkComplete, speech, onSpeechEnd, speechScale = 1 }: TallyProps) {
   const s = (v: number) => v * scale;
   const rig = useRig();
-  const { BODY_W, ARM_FLAIL_REST_CAP, LEG_FLAIL_REST_CAP } = rig;
+  const { BODY_W, ARM_FLAIL_REST_CAP, LEG_FLAIL_REST_CAP, HEAD_HALF_W, HEAD_CENTER_ABOVE_ANCHOR, SPEECH_GAP, SPEECH_MAX_WIDTH } = rig;
   // Runtime auto-grounding: a measured vertical offset (unscaled units) added to the body so the
   // lowest foot sits exactly on the anchor. Grounding is a rest-pose property of the resolved figure,
   // NOT a per-character config value — it's measured (see the layout effect below), never authored.
@@ -485,6 +508,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   });
   useCapabilityAnimation(BODY_Y_KEY, bodyYAnimRef.current);
   const locomotionRef = useLocomotionRef();
+  const verticalWrapRef = useVerticalRef();
 
   // Action lifecycle. By default an active action plays to completion and is NOT interruptible. A
   // trigger that arrives while an action is in flight is held in a single queue slot (depth 1) and
@@ -495,7 +519,10 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   // the consumer sets the prop to null then back. Setting the prop to null is a no-op for
   // playback: it neither cancels the running action nor clears the queue, it just resets the
   // trigger so the same spec can re-fire.
-  const lastActionKeyRef = useRef<string | null>(null);
+  // Seed with the CURRENT prop value so a mount-time action isn't auto-played. This matters on a
+  // character switch: the whole figure remounts (see Tally) while `action` still holds the last spec —
+  // a null-seeded dedupe would replay it on the new character. Only genuine prop CHANGES fire.
+  const lastActionKeyRef = useRef<string | null>(action ? JSON.stringify(action) : null);
   // The active action is wrapped with a per-activation `id` so EVERY activation is a fresh object,
   // even when the same spec reference is replayed back-to-back (e.g. queueing the same gesture that
   // just finished — the dev buttons reuse one spec object). Without this, setActive(sameSpecRef)
@@ -699,7 +726,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
       if (!root) return;
       const rect = root.getBoundingClientRect(); // 0×0 div: rect origin IS the anchor screen point
       const headX = rect.left;
-      const headY = rect.top - TRACK_HEAD_ABOVE_ANCHOR * scale;
+      const headY = rect.top - HEAD_CENTER_ABOVE_ANCHOR * scale;
       const dx = e.clientX - headX;
       const dy = e.clientY - headY; // screen-y grows downward: dy<0 = cursor above the head
       const effTurn = 0.5 + clamp(dx / (TRACK_TURN_RANGE_BW * BODY_W * scale), -1, 1) * TRACK_TURN_MAX;
@@ -880,7 +907,9 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   // Two-phase teardown so the bubble can play an exit animation: the read timer flips `leaving`
   // true (the bubble switches to its exit animation), then after SPEECH_EXIT_MS it unmounts.
   const [speechLeaving, setSpeechLeaving] = useState(false);
-  const lastSpeechKeyRef = useRef<string | null>(null);
+  // Seeded with the current prop value (like lastActionKeyRef) so a remount — e.g. a character switch —
+  // doesn't re-say a stale `speech` prop on the new figure. Only genuine prop CHANGES fire the bubble.
+  const lastSpeechKeyRef = useRef<string | null>(speech ? JSON.stringify(speech) : null);
   const speechCounterRef = useRef(0);
   const onSpeechEndRef = useRef(onSpeechEnd);
   onSpeechEndRef.current = onSpeechEnd;
@@ -944,6 +973,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
           }}
         />
       )}
+      {/* Outer wrapper carries HORIZONTAL travel (body.x) — figure + shadow slide together. */}
       <div
         ref={locomotionRef}
         style={{
@@ -955,33 +985,50 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
           overflow: "visible",
         }}
       >
-        <Body scale={scale} theme={theme} showAnchor={showAnchor} chestImage={chestImage} groundingOffset={groundingOffset}>
-          <Head scale={scale} theme={theme} showAnchor={showAnchor}>
-            <LeftEye scale={scale} theme={theme} />
-            <RightEye scale={scale} theme={theme} />
-            <LeftEar scale={scale} theme={theme} />
-            <RightEar scale={scale} theme={theme} />
-            <Antenna scale={scale} theme={theme} showAnchor={showAnchor} signal={mode === "connecting"} />
-          </Head>
-          <LeftArm scale={scale} theme={theme} showAnchor={showAnchor} />
-          <RightArm scale={scale} theme={theme} showAnchor={showAnchor} />
-          <LeftLeg scale={scale} theme={theme} showAnchor={showAnchor} />
-          <RightLeg scale={scale} theme={theme} showAnchor={showAnchor} />
-        </Body>
+        {/* Shadow stays at the anchor (horizontal travel only — it does NOT rise/fall with body.y). */}
         <Shadow scale={scale} theme={theme} />
-        {/* Speech bubble — sibling of Body inside the locomotion wrapper, so it travels with the
-            figure (body.x walk / body.y drop-jump). key=id remounts on each new utterance. */}
-        {activeSpeech && (
-          <SpeechBubble
-            key={activeSpeech.id}
-            text={activeSpeech.text}
-            side={activeSpeech.side}
-            scale={scale}
-            speechScale={speechScale}
-            theme={theme}
-            leaving={speechLeaving}
-          />
-        )}
+        {/* Inner wrapper carries VERTICAL travel (body.y drop/jump) — only the figure rises/falls. */}
+        <div
+          ref={verticalWrapRef}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: 0,
+            height: 0,
+            overflow: "visible",
+          }}
+        >
+          <Body scale={scale} theme={theme} showAnchor={showAnchor} chestImage={chestImage} groundingOffset={groundingOffset}>
+            <Head scale={scale} theme={theme} showAnchor={showAnchor}>
+              <LeftEye scale={scale} theme={theme} />
+              <RightEye scale={scale} theme={theme} />
+              <LeftEar scale={scale} theme={theme} />
+              <RightEar scale={scale} theme={theme} />
+              <Antenna scale={scale} theme={theme} showAnchor={showAnchor} signal={mode === "connecting"} />
+            </Head>
+            <LeftArm scale={scale} theme={theme} showAnchor={showAnchor} />
+            <RightArm scale={scale} theme={theme} showAnchor={showAnchor} />
+            <LeftLeg scale={scale} theme={theme} showAnchor={showAnchor} />
+            <RightLeg scale={scale} theme={theme} showAnchor={showAnchor} />
+          </Body>
+          {/* Speech bubble rides with the figure (body.x via the outer wrapper, body.y via this one). */}
+          {activeSpeech && (
+            <SpeechBubble
+              key={activeSpeech.id}
+              text={activeSpeech.text}
+              side={activeSpeech.side}
+              scale={scale}
+              speechScale={speechScale}
+              theme={theme}
+              leaving={speechLeaving}
+              headHalfW={HEAD_HALF_W}
+              headCenterAboveAnchor={HEAD_CENTER_ABOVE_ANCHOR}
+              gap={SPEECH_GAP}
+              maxWidth={SPEECH_MAX_WIDTH}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1105,12 +1152,27 @@ function useBodyRef(scale: number) {
 // Wraps Body + Shadow and slides the whole figure by body.x (horizontal, walk/come) and body.y
 // (vertical, drop free-fall), both in scaled px. The wrapper is a zero-size box at the figure's
 // origin, so its children keep their existing absolute positioning; only the translate moves.
+// HORIZONTAL travel only (body.x walk/come). Wraps the figure AND the shadow, so the shadow slides
+// along the ground with the figure but does NOT rise/fall with it.
 function useLocomotionRef() {
   const ref = useRef<HTMLDivElement>(null);
   const render = useCallback((caps: ReadonlyMap<string, number>) => {
     const el = ref.current;
     if (!el) return;
-    el.style.transform = `translate(${caps.get(BODY_X_KEY) ?? 0}px, ${caps.get(BODY_Y_KEY) ?? 0}px)`;
+    el.style.transform = `translateX(${caps.get(BODY_X_KEY) ?? 0}px)`;
+  }, []);
+  useAnimationRenderer(render);
+  return ref;
+}
+
+// VERTICAL travel only (body.y drop free-fall / jump). Wraps the figure but NOT the shadow, so the
+// shadow stays pinned to the ground while the figure rises and falls.
+function useVerticalRef() {
+  const ref = useRef<HTMLDivElement>(null);
+  const render = useCallback((caps: ReadonlyMap<string, number>) => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.transform = `translateY(${caps.get(BODY_Y_KEY) ?? 0}px)`;
   }, []);
   useAnimationRenderer(render);
   return ref;
@@ -1457,8 +1519,6 @@ function Head({
 
 // Eye anatomy (dims, placement, roundness, pupil inset, foreshorten ratios) is resolved in resolveRig().
 const MAX_BLINK_CLOSE = .84;             // motion-tuning: how far the eye closes on a full blink
-const EYE_TURN_SLIDE_GAZE = 26 / 120;         // motion-tuning: base gaze slide, as a fraction of head width (× HEAD_W)
-const EYE_TURN_SLIDE_CONVERGENCE = 24 / 120;  // motion-tuning: convergence slide, fraction of head width (× HEAD_W)
 const EYE_TILT_SLIDE_UP = 58 / 90;            // motion-tuning: tilt-up slide, fraction of head height (× HEAD_H)
 const EYE_TILT_SLIDE_DOWN = 14 / 90;          // motion-tuning: tilt-down slide, fraction of head height (× HEAD_H)
 
@@ -1471,7 +1531,7 @@ function useEyeRefShared(scale: number, side: "left" | "right") {
   const render = useCallback((caps: ReadonlyMap<string, number>) => {
     const el = ref.current;
     if (!el) return;
-    const { EYE_W, EYE_H, EYE_TOP_RATIO, EYE_SIDE_RATIO, EYE_OFFSET_V, EYE_OFFSET_H, EYE_TURN_W_RATIO, EYE_TILT_H_RATIO, EYE_TILT_PERSPECTIVE_POWER, HEAD_W, HEAD_H, HEAD_OFFSET, HEAD_TILT_RATIO } = rig;
+    const { EYE_W, EYE_H, EYE_TOP_RATIO, EYE_SIDE_RATIO, EYE_TURN_CLOSER_INSET, EYE_TURN_FURTHER_INSET, EYE_OFFSET_V, EYE_OFFSET_H, EYE_TURN_W_RATIO, EYE_TILT_H_RATIO, EYE_TILT_PERSPECTIVE_POWER, HEAD_W, HEAD_H, HEAD_OFFSET, HEAD_TILT_RATIO } = rig;
     const blink = caps.get(BLINK_KEY) ?? 1;
     const turn = effectiveHeadTurn(caps);
     const tilt = remapTilt(caps.get(HEAD_TILT_KEY) ?? 0.5);
@@ -1521,9 +1581,15 @@ function useEyeRefShared(scale: number, side: "left" | "right") {
     const eyeW = EYE_W * (1 - easedTurnPerspective * (1 - EYE_TURN_W_RATIO));
     const widthShrink = EYE_W - eyeW;
     const isLeft = side === "left";
+    // Derive the shared gaze slide (ease-out, both eyes toward the gaze) and the per-eye convergence
+    // (ease-in, near/far differentiation) from the two authorable full-turn insets, so each endpoint
+    // lands exactly on its inset while the motion feel is preserved. At full turn the closer eye sits
+    // at EYE_TURN_CLOSER_INSET and the further eye at EYE_TURN_FURTHER_INSET (× headW from its own edge).
+    const turnGaze = (EYE_TURN_FURTHER_INSET - EYE_TURN_CLOSER_INSET) / 2;
+    const turnConverge = (EYE_TURN_CLOSER_INSET + EYE_TURN_FURTHER_INSET) / 2 - EYE_SIDE_RATIO;
     const screenDx =
-      easedTurnGazeSigned * EYE_TURN_SLIDE_GAZE * HEAD_W +
-      (isLeft ? 1 : -1) * easedTurnPerspective * EYE_TURN_SLIDE_CONVERGENCE * HEAD_W;
+      easedTurnGazeSigned * turnGaze * HEAD_W +
+      (isLeft ? 1 : -1) * easedTurnPerspective * turnConverge * HEAD_W;
     const cssOffset =
       HEAD_W * EYE_SIDE_RATIO +
       widthShrink / 2 +
@@ -1617,8 +1683,9 @@ function RightEye({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
   );
 }
 
-// Ear anatomy (placement, height/roundness ratios, turn-inward, rest size derived from the outline)
-// is resolved in resolveRig().
+// Ear anatomy (placement, height/roundness ratios, rest size derived from the outline) is resolved in
+// resolveRig(). The turn-inward slide is universal across robots, so it's a shared constant here.
+const EAR_TURN_INWARD_RATIO = 0.25;       // how far the cup slides inward at full turn (× headW) — shared
 const EAR_HIDE_RATE = 3;                  // motion-tuning: how quickly the ear disappears (higher = faster)
 const EAR_TILT_SLIDE = 8 / 90;            // motion-tuning: vertical slide on full tilt, fraction of head height (× HEAD_H)
 const EAR_Z_BEHIND = -1;                  // always behind the head outline (cartoon style) — the head silhouette occludes the ear
@@ -1630,7 +1697,7 @@ function useEarRefShared(scale: number, side: "left" | "right", hideWhenTurnGrea
   const render = useCallback((caps: ReadonlyMap<string, number>) => {
     const el = ref.current;
     if (!el) return;
-    const { EAR_REST_W, EAR_REST_OFFSET, EAR_HIDE_MIN_W, EAR_RADIUS_RATIO, EAR_HEIGHT_RATIO, EAR_TURN_INWARD_RATIO, EAR_TOP_RATIO, HEAD_W, HEAD_H, HEAD_OFFSET, HEAD_TURN_RATIO } = rig;
+    const { EAR_REST_W, EAR_REST_OFFSET, EAR_HIDE_MIN_W, EAR_RADIUS_RATIO, EAR_HEIGHT_RATIO, EAR_TOP_RATIO, HEAD_W, HEAD_H, HEAD_OFFSET, HEAD_TURN_RATIO } = rig;
     const turn = effectiveHeadTurn(caps);
     const tilt = remapTilt(caps.get(HEAD_TILT_KEY) ?? 0.5);
     const restOffset = -EAR_REST_OFFSET;
@@ -2205,6 +2272,7 @@ function useLegRef(scale: number, side: "left" | "right") {
 
       // Two upper-leg layers (outer outline + inner face) — each has the foot as its
       // firstElementChild. Apply the swing rotation to each layer and update both feet together.
+      // (Foot rotation is anatomy — a static JSX transform — and is correct on mount/remount.)
       for (let i = 0; i < el.children.length; i++) {
         const upperLeg = el.children[i] as HTMLElement;
         upperLeg.style.transform = `rotate(${legAngle}deg)`;
@@ -2391,13 +2459,31 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
 }
 
 // Shadow anatomy (width/height/blur/opacity) is resolved in resolveRig().
+const SHADOW_DIM_AMOUNT = 0.55;  // how much the shadow fades at full lift (opacity multiplied by 1 − this)
+const SHADOW_DIM_REF_BW = 3;     // lift (in body-widths) at which the fade reaches its max
 
+// The shadow stays pinned to the ground (it's outside the vertical-travel wrapper). The only thing
+// body.y (jump/drop) does to it is FADE: full strength when grounded, slightly dimmer the higher up.
 function Shadow({ scale = 1, theme }: { scale: number; theme: ColorTheme }) {
   const s = (v: number) => v * scale;
-  const { SHADOW_W, SHADOW_H, SHADOW_BLUR, SHADOW_OPACITY } = useRig();
+  const { SHADOW_W, SHADOW_H, SHADOW_BLUR, SHADOW_OPACITY, BODY_W } = useRig();
+  const ref = useRef<HTMLDivElement>(null);
+  const render = useCallback(
+    (caps: ReadonlyMap<string, number>) => {
+      const el = ref.current;
+      if (!el) return;
+      const bodyY = caps.get(BODY_Y_KEY) ?? 0; // scaled px; ≤ 0 = airborne (above the ground)
+      const refLift = SHADOW_DIM_REF_BW * BODY_W * scale;
+      const t = refLift > 0 ? Math.min(1, Math.max(0, -bodyY) / refLift) : 0;
+      el.style.opacity = String(1 - t * SHADOW_DIM_AMOUNT);
+    },
+    [scale, BODY_W],
+  );
+  useAnimationRenderer(render);
 
   return (
     <div
+      ref={ref}
       style={{
         position: "absolute",
         zIndex: -1,

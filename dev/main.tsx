@@ -68,10 +68,23 @@ const characters: Record<string, Anatomy> = {
   Tally: tally,
   Beanpole: {
     ...tally,
-    body: { ...tally.body, width: 42, height: 74 },
-    head: { ...tally.head, width: 100, height: 80 },
-    arm: { ...tally.arm, upperWidth: 20, lowerWidth: 20, upperHeight: 56, lowerHeight: 46 },
-    leg: { ...tally.leg, legWidth: 20, legHeight: 42 },
+    body: { ...tally.body, width: 36, height: 84 },
+    head: { ...tally.head, width: 56, height: 80, bodyOverlap: 11, roundness: 16, turnDepthRatio: 1.2, tiltDepthRatio: .96, tiltRadiusGrow: 1.5 },
+    eye: {
+      ...tally.eye, width: 20, height: 20, roundnessRatio: .3,
+      topRatio: 0.45,
+      sideRatio: 0.22,
+      pupilInset: 3,
+      tiltHeightRatio: 0.4,
+      tiltPerspectivePower: 1.5,
+      turnWidthRatio: .24,
+      turnCloserInset: -.1,
+      turnFurtherInset: .75,
+    },
+    ear: { ...tally.ear, heightRatio: 0.2 },
+    antenna: { ...tally.antenna, height: 24 },
+    arm: { ...tally.arm, upperWidth: 20, lowerWidth: 20, upperHeight: 52, lowerHeight: 46, upperAngle: 15, lowerAngle: -10 },
+    leg: { ...tally.leg, legWidth: 20, legHeight: 64, footWidth: 34, footHeight: 22, legAngle: 3, footAngle: -3 },
   },
   Tank: {
     ...tally,
@@ -137,7 +150,7 @@ const GROUND_Y = 480; // px from the demo pane's top to the figure's anchor — 
 
 function App() {
   const [themeName, setThemeName] = useState("default");
-  const [characterName, setCharacterName] = useState("Tally");
+  const [characterName, setCharacterName] = useState("Beanpole");
   const [scale, setScale] = useState(1);
   const [showAnchor, setShowAnchor] = useState(false);
   const [mode, setMode] = useState<Mode>("hangout");
@@ -191,201 +204,201 @@ function App() {
           boxSizing: "border-box",
         }}
       >
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <label style={{ fontSize: 14, color: "#666" }}>
-          Character
-          <select
-            value={characterName}
-            onChange={(e) => setCharacterName(e.target.value)}
-            style={{ marginLeft: 8, padding: "4px 8px" }}
-          >
-            {Object.keys(characters).map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </label>
-        <label style={{ fontSize: 14, color: "#666" }}>
-          Theme
-          <select
-            value={themeName}
-            onChange={(e) => setThemeName(e.target.value)}
-            style={{ marginLeft: 8, padding: "4px 8px" }}
-          >
-            {Object.keys(themes).map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </label>
-        <label style={{ fontSize: 14, color: "#666" }}>
-          Scale
-          <select
-            value={scale}
-            onChange={(e) => setScale(Number(e.target.value))}
-            style={{ marginLeft: 8, padding: "4px 8px" }}
-          >
-            {scales.map((s) => (
-              <option key={s} value={s}>{s}x</option>
-            ))}
-          </select>
-        </label>
-        <label style={{ fontSize: 14, color: "#666", display: "flex", alignItems: "center", gap: 4 }}>
-          <input
-            type="checkbox"
-            checked={showAnchor}
-            onChange={(e) => setShowAnchor(e.target.checked)}
-          />
-          Anchor
-        </label>
-        <label style={{ fontSize: 14, color: "#666" }}>
-          Logo
-          <select
-            value={logoName}
-            onChange={(e) => setLogoName(e.target.value)}
-            style={{ marginLeft: 8, padding: "4px 8px" }}
-          >
-            <option value="none">none</option>
-            {Object.keys(logos).map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </label>
-        <label style={{ fontSize: 14, color: "#666" }}>
-          Mode
-          <select
-            value={mode}
-            onChange={(e) => setMode(e.target.value as Mode)}
-            style={{ marginLeft: 8, padding: "4px 8px" }}
-          >
-            {modes.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-        <span style={{ fontSize: 14, color: "#666" }}>Debug overrides (engage any combination):</span>
-        {debugCapabilities.map(({ key, rest }) => {
-          const engaged = key in overrides;
-          const value = engaged ? overrides[key] : rest;
-          return (
-            <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#666" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 4, width: 130 }}>
-                <input type="checkbox" checked={engaged} onChange={() => toggleOverride(key, rest)} />
-                {key}
-              </label>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={value}
-                disabled={!engaged}
-                onChange={(e) => setOverrideValue(key, Number(e.target.value))}
-                style={{ width: 160 }}
-              />
-              <span style={{ fontVariantNumeric: "tabular-nums", minWidth: 36, opacity: engaged ? 1 : 0.4 }}>{value.toFixed(2)}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 14, color: "#666", width: "100%" }}>Actions:</span>
-        {gestures.map((spec) => (
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <label style={{ fontSize: 14, color: "#666" }}>
+            Character
+            <select
+              value={characterName}
+              onChange={(e) => setCharacterName(e.target.value)}
+              style={{ marginLeft: 8, padding: "4px 8px" }}
+            >
+              {Object.keys(characters).map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ fontSize: 14, color: "#666" }}>
+            Theme
+            <select
+              value={themeName}
+              onChange={(e) => setThemeName(e.target.value)}
+              style={{ marginLeft: 8, padding: "4px 8px" }}
+            >
+              {Object.keys(themes).map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ fontSize: 14, color: "#666" }}>
+            Scale
+            <select
+              value={scale}
+              onChange={(e) => setScale(Number(e.target.value))}
+              style={{ marginLeft: 8, padding: "4px 8px" }}
+            >
+              {scales.map((s) => (
+                <option key={s} value={s}>{s}x</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ fontSize: 14, color: "#666", display: "flex", alignItems: "center", gap: 4 }}>
+            <input
+              type="checkbox"
+              checked={showAnchor}
+              onChange={(e) => setShowAnchor(e.target.checked)}
+            />
+            Anchor
+          </label>
+          <label style={{ fontSize: 14, color: "#666" }}>
+            Logo
+            <select
+              value={logoName}
+              onChange={(e) => setLogoName(e.target.value)}
+              style={{ marginLeft: 8, padding: "4px 8px" }}
+            >
+              <option value="none">none</option>
+              {Object.keys(logos).map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ fontSize: 14, color: "#666" }}>
+            Mode
+            <select
+              value={mode}
+              onChange={(e) => setMode(e.target.value as Mode)}
+              style={{ marginLeft: 8, padding: "4px 8px" }}
+            >
+              {modes.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+          <span style={{ fontSize: 14, color: "#666" }}>Debug overrides (engage any combination):</span>
+          {debugCapabilities.map(({ key, rest }) => {
+            const engaged = key in overrides;
+            const value = engaged ? overrides[key] : rest;
+            return (
+              <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#666" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 4, width: 130 }}>
+                  <input type="checkbox" checked={engaged} onChange={() => toggleOverride(key, rest)} />
+                  {key}
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={value}
+                  disabled={!engaged}
+                  onChange={(e) => setOverrideValue(key, Number(e.target.value))}
+                  style={{ width: 160 }}
+                />
+                <span style={{ fontVariantNumeric: "tabular-nums", minWidth: 36, opacity: engaged ? 1 : 0.4 }}>{value.toFixed(2)}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 14, color: "#666", width: "100%" }}>Actions:</span>
+          {gestures.map((spec) => (
+            <button
+              key={spec.name}
+              type="button"
+              onClick={() => fireAction(spec)}
+              style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
+            >
+              {spec.name}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 14, color: "#666", width: "100%" }}>Walk:</span>
           <button
-            key={spec.name}
             type="button"
-            onClick={() => fireAction(spec)}
+            onClick={() => fireAction({ name: "walk", direction: "left", distance: walkDistance })}
             style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
           >
-            {spec.name}
+            walk ←
           </button>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 14, color: "#666", width: "100%" }}>Walk:</span>
-        <button
-          type="button"
-          onClick={() => fireAction({ name: "walk", direction: "left", distance: walkDistance })}
-          style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-        >
-          walk ←
-        </button>
-        <button
-          type="button"
-          onClick={() => fireAction({ name: "walk", direction: "right", distance: walkDistance })}
-          style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-        >
-          walk →
-        </button>
-        <button
-          type="button"
-          onClick={() => fireAction({ name: "come", direction: "left", distance: walkDistance })}
-          style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-        >
-          come ↦ (from left)
-        </button>
-        <button
-          type="button"
-          onClick={() => fireAction({ name: "come", direction: "right", distance: walkDistance })}
-          style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-        >
-          come ↤ (from right)
-        </button>
-        <button
-          type="button"
-          onClick={() => fireAction({ name: "drop", distance: walkDistance })}
-          style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-        >
-          drop ↓
-        </button>
-        <button
-          type="button"
-          onClick={() => fireAction({ name: "jump" })}
-          style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-        >
-          jump ↑
-        </button>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#666", width: "100%" }}>
-          <span style={{ width: 60 }}>Distance</span>
+          <button
+            type="button"
+            onClick={() => fireAction({ name: "walk", direction: "right", distance: walkDistance })}
+            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
+          >
+            walk →
+          </button>
+          <button
+            type="button"
+            onClick={() => fireAction({ name: "come", direction: "left", distance: walkDistance })}
+            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
+          >
+            come ↦ (from left)
+          </button>
+          <button
+            type="button"
+            onClick={() => fireAction({ name: "come", direction: "right", distance: walkDistance })}
+            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
+          >
+            come ↤ (from right)
+          </button>
+          <button
+            type="button"
+            onClick={() => fireAction({ name: "drop", distance: walkDistance })}
+            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
+          >
+            drop ↓
+          </button>
+          <button
+            type="button"
+            onClick={() => fireAction({ name: "jump" })}
+            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
+          >
+            jump ↑
+          </button>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#666", width: "100%" }}>
+            <span style={{ width: 60 }}>Distance</span>
+            <input
+              type="range"
+              min={0.5}
+              max={10}
+              step={0.5}
+              value={walkDistance}
+              onChange={(e) => setWalkDistance(Number(e.target.value))}
+              style={{ width: 160 }}
+            />
+            <span style={{ fontVariantNumeric: "tabular-nums", minWidth: 36 }}>{walkDistance.toFixed(1)}</span>
+          </label>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 14, color: "#666", width: "100%" }}>Say:</span>
           <input
-            type="range"
-            min={0.5}
-            max={10}
-            step={0.5}
-            value={walkDistance}
-            onChange={(e) => setWalkDistance(Number(e.target.value))}
-            style={{ width: 160 }}
+            type="text"
+            value={speechText}
+            onChange={(e) => setSpeechText(e.target.value)}
+            placeholder="What should Tally say?"
+            style={{ flex: 1, minWidth: 160, padding: "6px 8px", fontSize: 14 }}
           />
-          <span style={{ fontVariantNumeric: "tabular-nums", minWidth: 36 }}>{walkDistance.toFixed(1)}</span>
-        </label>
-      </div>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 14, color: "#666", width: "100%" }}>Say:</span>
-        <input
-          type="text"
-          value={speechText}
-          onChange={(e) => setSpeechText(e.target.value)}
-          placeholder="What should Tally say?"
-          style={{ flex: 1, minWidth: 160, padding: "6px 8px", fontSize: 14 }}
-        />
-        <select
-          value={speechSide}
-          onChange={(e) => setSpeechSide(e.target.value as SpeechSide)}
-          style={{ padding: "4px 8px" }}
-        >
-          <option value="auto">auto</option>
-          <option value="left">left</option>
-          <option value="right">right</option>
-        </select>
-        <button
-          type="button"
-          onClick={fireSpeech}
-          disabled={speechText.length === 0}
-          style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-        >
-          say
-        </button>
-      </div>
+          <select
+            value={speechSide}
+            onChange={(e) => setSpeechSide(e.target.value as SpeechSide)}
+            style={{ padding: "4px 8px" }}
+          >
+            <option value="auto">auto</option>
+            <option value="left">left</option>
+            <option value="right">right</option>
+          </select>
+          <button
+            type="button"
+            onClick={fireSpeech}
+            disabled={speechText.length === 0}
+            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
+          >
+            say
+          </button>
+        </div>
       </div>
 
       {/* Right: demo space */}

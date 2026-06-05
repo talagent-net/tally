@@ -38,14 +38,10 @@ export function speechDurationMs(text: string): number {
   return Math.max(SPEECH_MIN_MS, Math.min(SPEECH_MAX_MS, raw));
 }
 
-// Geometry (unscaled px, multiplied by `scale` at render). The figure is centered on x=0 and the
-// head's center sits ~SPEECH_CENTER_ABOVE_ANCHOR above the anchor with a half-width of
-// SPEECH_HEAD_HALF_W — so the bubble's inner edge is parked SPEECH_GAP beyond the head's side, the
-// tail diamond straddling that edge to point back at the head.
-const SPEECH_HEAD_HALF_W = 66;   // (HEAD_W + HEAD_OFFSET) / 2 in Tally
-const SPEECH_CENTER_ABOVE_ANCHOR = 125; // head vertical center above the anchor (matches TRACK_HEAD_ABOVE_ANCHOR)
-const SPEECH_GAP = 19;           // gap from the head's side edge to the bubble's inner edge
-const SPEECH_MAX_WIDTH = 192;    // bubble wraps past this content width
+// Geometry (unscaled px, multiplied by `scale` at render). The head anchor (the bubble's side edge +
+// vertical center) and the authored gap/maxWidth arrive as props from the resolved rig, so they track
+// the character's actual head. The chrome below (padding, radius, font, border, tail) is SHARED across
+// all characters — behavioral/style, not proportions.
 const SPEECH_PAD_V = 8;
 const SPEECH_PAD_H = 12;
 const SPEECH_RADIUS = 12;
@@ -79,6 +75,10 @@ export function SpeechBubble({
   speechScale = 1,
   theme,
   leaving = false,
+  headHalfW,
+  headCenterAboveAnchor,
+  gap,
+  maxWidth,
 }: {
   text: string;
   side: "left" | "right"; // already resolved (Tally turns "auto" into a concrete side)
@@ -87,6 +87,11 @@ export function SpeechBubble({
   speechScale?: number;
   theme: ColorTheme;
   leaving?: boolean; // when true, play the exit animation (Tally unmounts after SPEECH_EXIT_MS)
+  // Head anchor (DERIVED from rig) + authored rules — the bubble parks at the real head's side/center.
+  headHalfW: number;             // (HEAD_W + HEAD_OFFSET) / 2
+  headCenterAboveAnchor: number; // head vertical center above the anchor
+  gap: number;                   // head edge → bubble inner edge
+  maxWidth: number;              // text wrap column
 }) {
   // Two scale factors. `s` is the plain FIGURE scale and drives everything structural — the anchor
   // (offset, top), head-follow drift, the whole tail (length, body, outline), the outline stroke
@@ -97,7 +102,7 @@ export function SpeechBubble({
   // is independently scaled. speechScale=1 → sb === s → byte-identical to before.
   const s = (v: number) => v * scale;
   const sb = (v: number) => v * scale * speechScale;
-  const offset = s(SPEECH_HEAD_HALF_W + SPEECH_GAP);
+  const offset = s(headHalfW + gap);
 
   // Head-follow. A per-frame renderer translates an outer wrapper (NOT the bubble itself, whose
   // transform is owned by the entrance/exit keyframes) by a small offset derived from the live head
@@ -191,7 +196,7 @@ export function SpeechBubble({
     <div
       style={{
         position: "absolute",
-        top: s(-SPEECH_CENTER_ABOVE_ANCHOR),
+        top: s(-headCenterAboveAnchor),
         // Park the inner edge `offset` from center; the bubble grows away from the head, the tail
         // toward it. translateY(-50%) centers the bubble on the head's vertical center; the entrance
         // grows from the tail side (origin toward the head) so it reads as coming out of Tally.
@@ -203,7 +208,7 @@ export function SpeechBubble({
         // an explicit width an absolutely-positioned box is shrink-to-fit and collapses to one
         // character per line; max-content sizes to the content and the cap forces normal wrapping.
         width: "max-content",
-        maxWidth: sb(SPEECH_MAX_WIDTH), // text-wrap column widens with the font
+        maxWidth: sb(maxWidth), // text-wrap column widens with the font
         boxSizing: "border-box",
         padding: `${s(SPEECH_PAD_V)}px ${s(SPEECH_PAD_H)}px`,
         background: "#ffffff",

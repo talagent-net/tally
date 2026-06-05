@@ -120,6 +120,11 @@ export interface EyeAnatomy {
   /** placement on the head (already relative) */
   topRatio: number;
   sideRatio: number;
+  /** each eye's horizontal inset at FULL head-turn (× headW), measured from its OWN edge: the closer
+   *  eye (on the side the head turns toward) from the leading edge, the further eye from the trailing
+   *  edge. Auto-mirrored for the opposite turn. The eye eases from sideRatio (rest) to these at full turn. */
+  turnCloserInset: number;
+  turnFurtherInset: number;
   /** uniform px inset of the pupil within the eye (the colored rim; held constant through a blink) */
   pupilInset: number;
   /** foreshortening as the head turns / tilts */
@@ -135,9 +140,8 @@ export interface EarAnatomy {
   heightRatio: number;
   /** border-radius ÷ current width */
   roundnessRatio: number;
-  /** how far the cup slides inward at full turn ÷ headW */
-  turnInwardRatio: number;
-  // rest width / offset / hide-min are DERIVED from the global outlineThickness (not stored).
+  // turn-inward slide, rest width / offset / hide-min are NOT stored: the slide is a shared constant
+  // (× headW, universal), the rest sizes are DERIVED from the global outlineThickness.
 }
 
 export interface ArmAnatomy {
@@ -169,6 +173,16 @@ export interface LegAnatomy {
   // hip / ankle pivots are DERIVED; leg capsule + foot toe/heel radii are fixed shapes (no knob).
 }
 
+export interface SpeechAnatomy {
+  /** gap from the head's side edge to the bubble's inner edge (px). The head anchor itself (the
+   *  bubble's side + vertical center) is DERIVED from the head geometry, not authored. */
+  gap: number;
+  /** content width past which the bubble text wraps (px) */
+  maxWidth: number;
+  // Everything else about the bubble — padding, radius, font, border, tail, head-follow drift, and the
+  // read-duration timing — is SHARED across characters (behavioral/chrome), so it lives in speech.tsx.
+}
+
 export interface Anatomy {
   global: GlobalAnatomy;
   body: BodyAnatomy;
@@ -178,6 +192,7 @@ export interface Anatomy {
   ear: EarAnatomy;
   arm: ArmAnatomy;
   leg: LegAnatomy;
+  speech: SpeechAnatomy;
 }
 
 /** The default preset — reproduces today's Tally. */
@@ -235,6 +250,8 @@ export const tally: Anatomy = {
     pivot: { xFrac: 0.5, yFrac: 0.5 },
     topRatio: 0.55,
     sideRatio: 0.24,
+    turnCloserInset: 26.8 / 120,  // closer eye's inset from its leading edge at full turn (× headW) — reproduces today
+    turnFurtherInset: 78.8 / 120, // further eye's inset from its trailing edge at full turn (× headW) — reproduces today
     pupilInset: 4,
     turnWidthRatio: 0.24,
     tiltHeightRatio: 0.7,
@@ -244,7 +261,6 @@ export const tally: Anatomy = {
     topRatio: 0.42,
     heightRatio: 0.4,
     roundnessRatio: 0.4,
-    turnInwardRatio: 0.25,
   },
   arm: {
     upperWidth: 24,
@@ -264,5 +280,9 @@ export const tally: Anatomy = {
     footAngle: -9, // left foot splays opposite the leg (right = negation → +9)
     hipInsetRatio: 0,
     hipTuckRatio: 26 / 64, // hip overlap into the body top, as a fraction of body height
+  },
+  speech: {
+    gap: 19,        // head edge → bubble inner edge
+    maxWidth: 192,  // text wrap column
   },
 };

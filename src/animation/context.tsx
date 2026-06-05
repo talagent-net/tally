@@ -28,7 +28,8 @@ export function useCapability(key: string, rest: number): void {
   }, [engine, key, rest]);
 }
 
-// Register a per-frame renderer. The callback should be stable (memoized).
+// Register a per-frame renderer. The callback should be stable (memoized). Anatomy/rig changes are
+// handled by remounting the whole engine subtree (see Tally), so renderers are always freshly bound.
 export function useAnimationRenderer(render: RendererFn): void {
   const engine = useEngine();
   useEffect(() => engine.registerRenderer(render), [engine, render]);

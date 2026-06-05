@@ -15,5 +15,6 @@ export type {
   EarAnatomy,
   ArmAnatomy,
   LegAnatomy,
+  SpeechAnatomy,
   Pivot,
 } from "./anatomy";
