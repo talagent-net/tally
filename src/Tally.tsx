@@ -253,7 +253,14 @@ const effectiveUpperTurn = (caps: ReadonlyMap<string, number>): number => {
   return Math.max(0, Math.min(1, body + (upper - 0.5)));
 };
 
-export type Mode = "hangout" | "track" | "connecting" | "debug";
+export type Mode = "hangout" | "track" | "connecting" | "frozen" | "debug";
+
+// `frozen` mode: a still resting portrait — every ambient animation is off and the figure sits at its
+// neutral rest pose (straight gaze, antenna down, eyes held open, no blink). It is NOT a hold-the-live-
+// pose freeze (that's what `connecting` uses makeFreeze for); frozen simply opts into none of the
+// ambient animations, so each capability eases to its rest value. Honors scale/theme/anatomy/chestImage/
+// groundShadow like any mode, and a one-shot `action` still plays on top and returns to rest when done.
+// Use it for non-interactive avatars where any idle motion is unwanted (prefers-reduced-motion friendly).
 
 // `track` mode: the head follows the cursor. The head's screen center sits HEAD_CENTER_ABOVE_ANCHOR
 // unscaled px above the anchor (derived in the rig from the body/head stack) and the figure is
@@ -649,12 +656,12 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     };
   }, [activeAction, scale, onWalkComplete, activate]);
 
-  // eyes.blink — action > debug > (no ambient in debug/connecting) > hangout's random blinks.
+  // eyes.blink — action > debug > (no ambient in debug/frozen/connecting) > hangout's & track's random blinks.
   const blinkAnimation = useMemo(() => {
     if (activeAction?.animations[BLINK_KEY]) return activeAction.animations[BLINK_KEY];
     const dbg = debugAnimFor(BLINK_KEY);
     if (dbg) return dbg;
-    if (mode === "debug") return null;
+    if (mode === "debug" || mode === "frozen") return null; // frozen: still portrait, eyes held open
     if (mode === "connecting") return null; // eyes stay open while spinning
     return createBlinkAnimation();
   }, [activeAction, mode, debugAnimFor]);

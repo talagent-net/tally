@@ -130,7 +130,7 @@ const characters: Record<string, Anatomy> = {
 };
 
 const scales = [.36, 0.5, 1, 1.5, 2, 2.5, 3, 3.5];
-const modes: Mode[] = ["hangout", "track", "connecting", "debug"];
+const modes: Mode[] = ["hangout", "track", "connecting", "frozen", "debug"];
 // Each debug capability with its rest value — toggling a capability on starts it at rest (no
 // visual jump) so you can then scrub from there. Multiple can be engaged at once.
 const debugCapabilities: { key: string; rest: number }[] = [
