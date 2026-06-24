@@ -7,6 +7,7 @@ import { createBlinkAnimation } from "./animation/blink";
 import { createLookAroundAnimation } from "./animation/lookAround";
 import { createFollowAnimation, type FollowTarget } from "./animation/follow";
 import { createAntennaWiggleAnimation } from "./animation/antennaWiggle";
+import { createSnoozeAnimation } from "./animation/snooze";
 import { createEyeSpinAnimation } from "./animation/eyeSpin";
 import { createAction, isPureGesture } from "./animation/actions";
 import type { ActionSpec } from "./animation/actions";
@@ -253,7 +254,14 @@ const effectiveUpperTurn = (caps: ReadonlyMap<string, number>): number => {
   return Math.max(0, Math.min(1, body + (upper - 0.5)));
 };
 
-export type Mode = "hangout" | "track" | "connecting" | "frozen" | "debug";
+export type Mode = "hangout" | "track" | "connecting" | "frozen" | "snooze" | "debug";
+
+// `snooze` mode: the figure is asleep. It settles into a sleeping pose — head tilted down and lolled
+// slightly to one side, eyes shut, antenna drooping limp — then breathes slowly (a gentle body.crouch
+// oscillation that also nudges the head up/down), with cartoon "Z"s floating up from the head. Entering
+// snooze eases from the head's current pose into the sleep pose (drifting off); leaving it releases
+// every capability back to rest like any other mode. A one-shot `action` still plays on top and the
+// figure drifts back to sleep when it finishes. See createSnoozeAnimation.
 
 // `frozen` mode: a still resting portrait — every ambient animation is off and the figure sits at its
 // neutral rest pose (straight gaze, antenna down, eyes held open, no blink). It is NOT a hold-the-live-
@@ -665,15 +673,38 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     };
   }, [activeAction, scale, onWalkComplete, activate]);
 
-  // eyes.blink — action > debug > (no ambient in debug/frozen/connecting) > hangout's & track's random blinks.
+  // `snooze` mode: a sleeping pose + slow breathing, driven by one bundle of capability animations
+  // (eyes shut, head down + lolled, antenna limp, body.crouch breathing). Gated by !activeAction like
+  // lookAround/follow so a one-shot action takes over cleanly and snooze re-settles when it finishes.
+  // Eases from the head's current pose (read lazily on the first tick — see makeFreeze) so entering
+  // snooze drifts off smoothly rather than snapping into the sleep pose. Declared before the capability
+  // useMemos below (blink reads it) — its drivers feed several of them.
+  const snooze = useMemo(
+    () =>
+      mode === "snooze" && !activeAction
+        ? createSnoozeAnimation({
+            getInitialPose: () => ({
+              blink: engine.getCapability(BLINK_KEY),
+              tilt: engine.getCapability(HEAD_TILT_KEY),
+              bob: engine.getCapability(HEAD_BOB_KEY),
+              antenna: engine.getCapability(ANTENNA_WIGGLE_KEY),
+              crouch: engine.getCapability(BODY_CROUCH_KEY),
+            }),
+          })
+        : null,
+    [mode, activeAction, engine],
+  );
+
+  // eyes.blink — action > debug > snooze (eyes shut) > (no ambient in debug/frozen/connecting) > hangout's & track's random blinks.
   const blinkAnimation = useMemo(() => {
     if (activeAction?.animations[BLINK_KEY]) return activeAction.animations[BLINK_KEY];
     const dbg = debugAnimFor(BLINK_KEY);
     if (dbg) return dbg;
-    if (mode === "debug" || mode === "frozen") return null; // frozen: still portrait, eyes held open
+    if (snooze) return snooze.blink; // asleep: eyes ease shut and stay shut
+    if (mode === "debug" || mode === "frozen" || mode === "snooze") return null; // frozen/snooze-mid-action: no random blinks
     if (mode === "connecting") return null; // eyes stay open while spinning
     return createBlinkAnimation();
-  }, [activeAction, mode, debugAnimFor]);
+  }, [activeAction, mode, debugAnimFor, snooze]);
   useCapabilityAnimation(BLINK_KEY, blinkAnimation);
 
   // eyes.spin — debug > connecting mode's continuous full-turn spin. No action drives it; rests at
@@ -822,8 +853,8 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     const dbg = debugAnimFor(HEAD_TILT_KEY);
     if (dbg) return dbg;
     if (mode === "connecting") return makeFreeze(HEAD_TILT_KEY);
-    return follow?.headTilt ?? lookAround?.headTilt ?? null;
-  }, [activeAction, debugAnimFor, follow, lookAround, mode, makeFreeze]);
+    return snooze?.headTilt ?? follow?.headTilt ?? lookAround?.headTilt ?? null;
+  }, [activeAction, debugAnimFor, follow, lookAround, mode, makeFreeze, snooze]);
   useCapabilityAnimation(HEAD_TILT_KEY, headTiltAnimation);
 
   // body.turn (full turn — hips + legs included) — action > debug. No mode-level idle; the body stays
@@ -892,11 +923,13 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   const legsRightFlailAnimation = useMemo(() => (flailActive && activeAction?.animations[LEGS_RIGHT_FLAIL_KEY]) || debugAnimFor(LEGS_RIGHT_FLAIL_KEY), [activeAction, debugAnimFor, flailActive]);
   useCapabilityAnimation(LEGS_RIGHT_FLAIL_KEY, legsRightFlailAnimation);
 
-  // body.crouch — action > debug. No mode-level idle; no action drives it yet (debug-scrubbable).
+  // body.crouch — action > debug > snooze's slow breathing oscillation. No other mode-level idle.
   const bodyCrouchAnimation = useMemo(() => {
     if (activeAction?.animations[BODY_CROUCH_KEY]) return activeAction.animations[BODY_CROUCH_KEY];
-    return debugAnimFor(BODY_CROUCH_KEY);
-  }, [activeAction, debugAnimFor]);
+    const dbg = debugAnimFor(BODY_CROUCH_KEY);
+    if (dbg) return dbg;
+    return snooze?.bodyCrouch ?? null;
+  }, [activeAction, debugAnimFor, snooze]);
   useCapabilityAnimation(BODY_CROUCH_KEY, bodyCrouchAnimation);
 
   const headBobAnimation = useMemo(() => {
@@ -904,8 +937,8 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     const dbg = debugAnimFor(HEAD_BOB_KEY);
     if (dbg) return dbg;
     if (mode === "connecting") return makeFreeze(HEAD_BOB_KEY);
-    return lookAround?.headBob ?? null;
-  }, [activeAction, debugAnimFor, lookAround, mode, makeFreeze]);
+    return snooze?.headBob ?? lookAround?.headBob ?? null;
+  }, [activeAction, debugAnimFor, lookAround, mode, makeFreeze, snooze]);
   useCapabilityAnimation(HEAD_BOB_KEY, headBobAnimation);
 
   // arms.left.raise — action > debug. No mode-level animation.
@@ -944,9 +977,10 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     if (activeAction?.animations[ANTENNA_WIGGLE_KEY]) return activeAction.animations[ANTENNA_WIGGLE_KEY];
     const dbg = debugAnimFor(ANTENNA_WIGGLE_KEY);
     if (dbg) return dbg;
+    if (snooze) return snooze.antennaWiggle; // asleep: antenna droops limp
     if ((mode === "hangout" || mode === "track") && !activeAction) return createAntennaWiggleAnimation();
     return null;
-  }, [activeAction, mode, debugAnimFor]);
+  }, [activeAction, mode, debugAnimFor, snooze]);
   useCapabilityAnimation(ANTENNA_WIGGLE_KEY, antennaWiggleAnimation);
 
   // Speech overlay lifecycle — parallel to the action lifecycle above, but a separate channel: it
@@ -1021,7 +1055,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
           overflow: "visible",
         }}
       >
-        <Head scale={scale} theme={theme} showAnchor={showAnchor} topOverride={antennaProtrude}>
+        <Head scale={scale} theme={theme} showAnchor={showAnchor} topOverride={antennaProtrude} snooze={mode === "snooze"}>
           <LeftEye scale={scale} theme={theme} />
           <RightEye scale={scale} theme={theme} />
           <LeftEar scale={scale} theme={theme} />
@@ -1082,7 +1116,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
           }}
         >
           <Body scale={scale} theme={theme} showAnchor={showAnchor} chestImage={chestImage} groundingOffset={groundingOffset}>
-            <Head scale={scale} theme={theme} showAnchor={showAnchor}>
+            <Head scale={scale} theme={theme} showAnchor={showAnchor} snooze={mode === "snooze"}>
               <LeftEye scale={scale} theme={theme} />
               <RightEye scale={scale} theme={theme} />
               <LeftEar scale={scale} theme={theme} />
@@ -1520,6 +1554,7 @@ function Head({
   theme,
   showAnchor = false,
   topOverride,
+  snooze = false,
   children,
 }: {
   scale: number;
@@ -1529,6 +1564,9 @@ function Head({
   // neck-anchored offset used in the full figure. The head-only render passes its own value so the
   // head sits below the antenna's protrusion inside the intrinsic box.
   topOverride?: number;
+  // snooze mode (asleep) — render the floating cartoon "Z"s above the head. Works in both the full
+  // figure and the head-only portrait (the Head subtree is shared).
+  snooze?: boolean;
   children: React.ReactNode;
 }) {
   const s = (v: number) => v * scale;
@@ -1604,7 +1642,67 @@ function Head({
         }}
       />
       {children}
+      {/* Asleep — cartoon "Z"s drift up from the head's upper-right. */}
+      {snooze && <SnoozeZs scale={scale} theme={theme} />}
       {showAnchor && <PivotMarker scale={scale} x={HEAD_PIVOT_X} y={HEAD_PIVOT_Y} />}
+    </div>
+  );
+}
+
+// snooze-mode "Z"s: cartoon sleep letters that drift up-and-right from the head's crown, growing and
+// fading, staggered so a fresh Z leaves continuously (the classic asleep cue — same pure-CSS keyframe
+// approach as SignalWaves, no capability). Sizes/drifts are head-relative (× HEAD_W) so they scale with
+// any anatomy. Rendered inside Head (above the face, zIndex 6) so they ride the head's bob/tilt.
+const SNOOZE_Z_COUNT = 3;            // concurrent Z's (staggered)
+const SNOOZE_Z_PERIOD_MS = 3000;     // one Z's full rise+fade cycle
+const SNOOZE_Z_FONT = 20 / 120;      // base font size, fraction of head width (× HEAD_W)
+const SNOOZE_Z_DRIFT_UP = 70 / 120;  // how far a Z rises over its life, fraction of head width (× HEAD_W)
+const SNOOZE_Z_DRIFT_RIGHT = 34 / 120; // rightward drift over its life, fraction of head width (× HEAD_W)
+
+function SnoozeZs({ scale, theme }: { scale: number; theme: ColorTheme }) {
+  const s = (v: number) => v * scale;
+  const { HEAD_W, HEAD_H } = useRig();
+  const font = s(HEAD_W * SNOOZE_Z_FONT);
+  const up = s(HEAD_W * SNOOZE_Z_DRIFT_UP);
+  const right = s(HEAD_W * SNOOZE_Z_DRIFT_RIGHT);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        zIndex: 6, // above the head face (z3) and eyes (z5) so the Z's read clearly
+        top: s(HEAD_H * 0.04),
+        left: s(HEAD_W * 0.74),
+        width: 0,
+        height: 0,
+        pointerEvents: "none",
+      }}
+    >
+      <style>{`@keyframes tally-snooze-z {
+        0%   { opacity: 0; transform: translate(0px, 0px) scale(0.55); }
+        20%  { opacity: 0.95; }
+        70%  { opacity: 0.5; }
+        100% { opacity: 0; transform: translate(${right}px, ${-up}px) scale(1.3); }
+      }`}</style>
+      {Array.from({ length: SNOOZE_Z_COUNT }).map((_, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            fontSize: `${font}px`,
+            fontWeight: 800,
+            fontFamily: "system-ui, -apple-system, sans-serif",
+            lineHeight: 1,
+            color: theme.outline,
+            // fill-mode "both" holds the 0% keyframe (tiny + transparent) during the staggered start
+            // delay, so there's no full-size static Z before a Z's cycle begins.
+            animation: `tally-snooze-z ${SNOOZE_Z_PERIOD_MS}ms ease-out ${(i * SNOOZE_Z_PERIOD_MS) / SNOOZE_Z_COUNT}ms infinite both`,
+          }}
+        >
+          Z
+        </div>
+      ))}
     </div>
   );
 }
