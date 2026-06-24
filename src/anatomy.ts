@@ -272,8 +272,8 @@ export const tally: Anatomy = {
     pivot: { xFrac: 0.5, yFrac: 0.6 },
     turnDepthRatio: 0.84,
     chest: {
-      size: 36,
-      topRatio: 0.21875,
+      size: 32,
+      topRatio: 0.25,
       turnMinRatio: 0.15,
       crouchMinRatio: 0.6,
       turnSlideRatio: 16 / 52, // → relative (was CHEST_TURN_SLIDE 16px)
