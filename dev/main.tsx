@@ -66,7 +66,7 @@ const themes: Record<string, ColorTheme> = {
 // may not sit perfectly on the ground line — that's the next phase. Moderate variation looks right.
 const characters: Record<string, Anatomy> = {
   Tally: tally,
-  Beanpole: {
+  Stilt: {
     ...tally,
     global: {
       ...tally.global, shadow: { width: 56, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 8 },
@@ -85,7 +85,7 @@ const characters: Record<string, Anatomy> = {
       turnFurtherInset: .75,
     },
     ear: { ...tally.ear, heightRatio: 0.2 },
-    antenna: { ...tally.antenna, height: 24, signalScale: 2 },
+    antenna: { ...tally.antenna, height: 28, signalScale: 2 },
     arm: { ...tally.arm, upperWidth: 20, lowerWidth: 20, upperHeight: 52, lowerHeight: 46, upperAngle: 15, lowerAngle: -10 },
     leg: { ...tally.leg, legWidth: 20, legHeight: 64, footWidth: 24, footHeight: 20, legAngle: 3, footAngle: -3 },
     // tall + lanky: smaller, slower strides; a reserved upper body (narrow arm swing); long legs
@@ -95,14 +95,44 @@ const characters: Record<string, Anatomy> = {
     jump: { ...tally.jump, heightBodyWidths: 6, flailSpeed: 1.0 },
     drop: { ...tally.drop, flailSpeed: 1.5 }
   },
-  Tank: {
+  Scratch: {
     ...tally,
-    body: { ...tally.body, width: 66, height: 58, radiusTop: 40, radiusBottom: 34 },
-    head: { ...tally.head, width: 138, height: 106, roundness: 46 },
-    arm: { ...tally.arm, upperWidth: 28, lowerWidth: 28, upperHeight: 40, lowerHeight: 32 },
-    leg: { ...tally.leg, legWidth: 28, legHeight: 30, footWidth: 38 },
-    jump: { ...tally.jump, heightBodyWidths: 2.5, flailSpeed: 1.0 }, // heavy: low hop, slow lumbering flail
-    drop: { ...tally.drop, flailSpeed: 1.5 }, // heavy: slow, lumbering fall flail
+    // broad-bodied tall robot: small head with oversized round eyes + stubby antenna; a slow,
+    // bouncy, low-hop gait.
+    body: {
+      ...tally.body,
+      width: 74,
+      height: 74,
+      chest: { ...tally.body.chest, turnSlideRatio: 0.35 },
+    },
+    head: { ...tally.head, width: 72, height: 78, turnDepthRatio: 1, turnRadiusGrow: 1.1 },
+    antenna: { ...tally.antenna, width: 12, height: 32, radius: 4, restLean: -25, signalScale: 2.5 },
+    eye: {
+      ...tally.eye,
+      width: 42,
+      height: 42,
+      roundnessRatio: 0.2,
+      topRatio: 0.35,
+      sideRatio: -0.04,
+      pupilInset: 0,
+      turnCloserInset: -26.8 / 120,
+      turnWidthRatio: 0.6,
+      tiltHeightRatio: 0.8,
+    },
+    ear: { ...tally.ear, topRatio: 0.4, heightRatio: 0.44 },
+    arm: { ...tally.arm, upperWidth: 32, upperHeight: 54, lowerWidth: 28, lowerHeight: 44 },
+    leg: {
+      ...tally.leg,
+      legWidth: 32,
+      legHeight: 54,
+      footWidth: 36,
+      footHeight: 28,
+      legAngle: 7,
+      footAngle: -7,
+      hipInsetRatio: 0.1,
+    },
+    gait: { ...tally.gait, strideDeg: 32, bounceHeightRatio: 0.2, leanDeg: 4, walkDropOffset: 2, walkMsPerBodyWidth: 440, travelPerBodyWidth: 1.6 },
+    jump: { ...tally.jump, heightBodyWidths: 2, flailSpeed: 0.6 },
   },
   Buglet: {
     ...tally,
@@ -162,9 +192,120 @@ const gestures: ActionSpec[] = [{ name: "disagree" }, { name: "agree" }, { name:
 
 const GROUND_Y = 480; // px from the demo pane's top to the figure's anchor — i.e. the ground line.
 
+// ---- Anatomy editor ----------------------------------------------------------------------------
+// The editor is built by WALKING the anatomy object, so it needs no hand-maintained field list and
+// stays in sync if the `Anatomy` shape changes. Every numeric leaf (including nested ones like
+// `chest.size` or `pivot.xFrac`) becomes an input; top-level keys (body, head, …) become groups.
+type Leaf = { path: string[]; value: number };
+
+function numericLeaves(obj: Record<string, unknown>, prefix: string[] = []): Leaf[] {
+  const leaves: Leaf[] = [];
+  for (const [k, v] of Object.entries(obj)) {
+    const path = [...prefix, k];
+    if (typeof v === "number") leaves.push({ path, value: v });
+    else if (v && typeof v === "object") leaves.push(...numericLeaves(v as Record<string, unknown>, path));
+  }
+  return leaves;
+}
+
+// Immutably set a numeric value at a nested path, cloning only the spine along the way.
+function setAtPath<T>(root: T, path: string[], value: number): T {
+  const [head, ...rest] = path;
+  const obj = root as Record<string, unknown>;
+  if (rest.length === 0) return { ...obj, [head]: value } as T;
+  return { ...obj, [head]: setAtPath(obj[head], rest, value) } as T;
+}
+
+function AnatomyEditor({
+  anatomy,
+  onChange,
+  onExport,
+  onReset,
+  copied,
+}: {
+  anatomy: Anatomy;
+  onChange: (path: string[], value: number) => void;
+  onExport: () => void;
+  onReset: () => void;
+  copied: boolean;
+}) {
+  return (
+    <div
+      style={{
+        width: 340,
+        flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+        padding: 20,
+        borderLeft: "1px solid #e2e2e2",
+        background: "#fafafa",
+        overflowY: "auto",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          position: "sticky",
+          top: -20,
+          background: "#fafafa",
+          padding: "16px 0 8px",
+          marginTop: -16,
+          borderBottom: "1px solid #eee",
+          zIndex: 1,
+        }}
+      >
+        <span style={{ fontSize: 15, fontWeight: 600, color: "#444" }}>Anatomy</span>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" onClick={onReset} style={{ padding: "4px 10px", fontSize: 13, cursor: "pointer" }}>
+            Reset
+          </button>
+          <button type="button" onClick={onExport} style={{ padding: "4px 10px", fontSize: 13, cursor: "pointer", minWidth: 64 }}>
+            {copied ? "Copied!" : "Export"}
+          </button>
+        </div>
+      </div>
+      {Object.entries(anatomy).map(([part, partObj]) => (
+        <div key={part} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#999", textTransform: "uppercase", letterSpacing: 0.6 }}>
+            {part}
+          </span>
+          {numericLeaves(partObj as Record<string, unknown>).map(({ path, value }) => {
+            const fullPath = [part, ...path];
+            const k = fullPath.join(".");
+            const step = Math.abs(value) < 2 ? 0.01 : 1; // ratios/angles scrub finely; px in whole steps
+            return (
+              <label
+                key={k}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12, color: "#666" }}
+              >
+                <span style={{ fontFamily: "monospace" }}>{path.join(".")}</span>
+                <input
+                  type="number"
+                  value={value}
+                  step={step}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    if (e.target.value !== "" && !Number.isNaN(n)) onChange(fullPath, n);
+                  }}
+                  style={{ width: 92, padding: "3px 6px", fontSize: 12, fontVariantNumeric: "tabular-nums" }}
+                />
+              </label>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function App() {
   const [themeName, setThemeName] = useState("default");
-  const [characterName, setCharacterName] = useState("Tally");
+  const [characterName, setCharacterName] = useState("Scratch");
   const [scale, setScale] = useState(1);
   const [showAnchor, setShowAnchor] = useState(false);
   const [groundShadow, setGroundShadow] = useState(false);
@@ -177,6 +318,28 @@ function App() {
   const [speech, setSpeech] = useState<SpeechSpec | null>(null);
   const [speechText, setSpeechText] = useState("Hi, I'm Tally. Agent and avatar built by Peter.");
   const [speechSide, setSpeechSide] = useState<SpeechSide>("auto");
+  const [editMode, setEditMode] = useState(false);
+  const [draft, setDraft] = useState<Anatomy>(tally);
+  const [copied, setCopied] = useState(false);
+
+  // Anatomy edit mode: render the figure from a mutable `draft` (cloned from the selected preset) so
+  // edits show in real time while the left panel keeps driving actions/modes against it.
+  const enterEditMode = () => {
+    setDraft(structuredClone(characters[characterName]));
+    setEditMode(true);
+  };
+  const changeCharacter = (name: string) => {
+    setCharacterName(name);
+    if (editMode) setDraft(structuredClone(characters[name]));
+  };
+  const editAnatomy = (path: string[], value: number) => setDraft((d) => setAtPath(d, path, value));
+  const resetAnatomy = () => setDraft(structuredClone(characters[characterName]));
+  const exportAnatomy = async () => {
+    await navigator.clipboard.writeText(JSON.stringify(draft, null, 2));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  const activeAnatomy = editMode ? draft : characters[characterName];
 
   // Toggle a capability override on (pinned at its rest value) or off. Engaged capabilities
   // hold independently, so you can pin several at once.
@@ -225,7 +388,7 @@ function App() {
             Character
             <select
               value={characterName}
-              onChange={(e) => setCharacterName(e.target.value)}
+              onChange={(e) => changeCharacter(e.target.value)}
               style={{ marginLeft: 8, padding: "4px 8px" }}
             >
               {Object.keys(characters).map((name) => (
@@ -272,6 +435,14 @@ function App() {
               onChange={(e) => setGroundShadow(e.target.checked)}
             />
             Ground shadow
+          </label>
+          <label style={{ fontSize: 14, color: "#666", display: "flex", alignItems: "center", gap: 4 }}>
+            <input
+              type="checkbox"
+              checked={editMode}
+              onChange={(e) => (e.target.checked ? enterEditMode() : setEditMode(false))}
+            />
+            Edit anatomy
           </label>
           <label style={{ fontSize: 14, color: "#666" }}>
             Logo
@@ -466,7 +637,7 @@ function App() {
           scale={scale}
           mode={mode}
           view={view}
-          anatomy={characters[characterName]}
+          anatomy={activeAnatomy}
           theme={themes[themeName]}
           showAnchor={showAnchor}
           groundShadow={groundShadow}
@@ -476,6 +647,17 @@ function App() {
           speech={speech}
         />
       </div>
+
+      {/* Right: anatomy editor (only in edit mode) */}
+      {editMode && (
+        <AnatomyEditor
+          anatomy={draft}
+          onChange={editAnatomy}
+          onExport={exportAnatomy}
+          onReset={resetAnatomy}
+          copied={copied}
+        />
+      )}
     </div>
   );
 }
