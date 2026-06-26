@@ -3,6 +3,8 @@ export type { TallyProps, Mode, ColorTheme } from "./Tally";
 export type { ActionName, ActionSpec } from "./animation/actions";
 export type { SpeechSpec, SpeechSide } from "./speech";
 export { colors } from "./colors";
+export { measureFigure } from "./measure";
+export type { FigureBox } from "./measure";
 export { tally } from "./anatomy";
 export type {
   Anatomy,

@@ -1,6 +1,6 @@
-import { StrictMode, useState } from "react";
+import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Tally, tally } from "../src";
+import { Tally, tally, measureFigure } from "../src";
 import type { ColorTheme, Mode, ActionSpec, SpeechSpec, SpeechSide, Anatomy } from "../src";
 import openclaw from "./openclaw.png";
 import claudecode from "./claudecode.png";
@@ -120,7 +120,7 @@ const characters: Record<string, Anatomy> = {
       tiltHeightRatio: 0.8,
     },
     ear: { ...tally.ear, topRatio: 0.4, heightRatio: 0.44 },
-    arm: { ...tally.arm, upperWidth: 32, upperHeight: 54, lowerWidth: 28, lowerHeight: 44 },
+    arm: { ...tally.arm, upperWidth: 32, upperHeight: 54, lowerWidth: 28, lowerHeight: 44, shoulderRatio: 0.1 },
     leg: {
       ...tally.leg,
       legWidth: 32,
@@ -134,28 +134,74 @@ const characters: Record<string, Anatomy> = {
     gait: { ...tally.gait, strideDeg: 32, bounceHeightRatio: 0.2, leanDeg: 4, walkDropOffset: 2, walkMsPerBodyWidth: 440, travelPerBodyWidth: 1.6 },
     jump: { ...tally.jump, heightBodyWidths: 2, flailSpeed: 0.6 },
   },
-  Buglet: {
+  Float: {
     ...tally,
-    body: { ...tally.body, width: 44, height: 52 },
-    head: { ...tally.head, width: 150, height: 112 },
-    eye: { ...tally.eye, width: 20, height: 34 },
-    leg: { ...tally.leg, legHeight: 30 },
+    // legless floater: zero leg/foot width (nothing renders below), no walk bounce or arm swing,
+    // a soft low shadow, a slim narrow body and a quick glide.
+    global: { ...tally.global, shadow: { ...tally.global.shadow, width: 56, height: 12, blur: 3, fadeOutBodyWidths: 4 } },
+    body: { ...tally.body, width: 42, height: 72, radiusTop: 12 },
+    head: { ...tally.head, width: 96, roundness: 32, turnDepthRatio: 0.88, turnRadiusGrow: 1.1 },
+    antenna: { ...tally.antenna, width: 7, radius: 2, restLean: -5 },
+    eye: { ...tally.eye, width: 20, height: 22, roundnessRatio: 0.5, pivot: { ...tally.eye.pivot, xFrac: 0.44 }, topRatio: 0.44, sideRatio: 0.16, turnCloserInset: 0.12, turnFurtherInset: 0.6, pupilInset: 6, turnWidthRatio: 0.44 },
+    ear: { ...tally.ear, topRatio: 0.45, heightRatio: 0.3, roundnessRatio: 0.25 },
+    arm: { ...tally.arm, upperWidth: 22, lowerWidth: 20, upperAngle: 15, lowerAngle: -5, shoulderRatio: 0.05 },
+    leg: { ...tally.leg, legWidth: 0, legHeight: 44, footWidth: 0 },
+    gait: { ...tally.gait, armSwingDeg: 0, bounceHeightRatio: 0, walkMsPerBodyWidth: 160 },
+    jump: { ...tally.jump, heightBodyWidths: 6, flailSpeed: 0.1 },
   },
-  Blockhead: {
+  Glitch: {
     ...tally,
-    body: { ...tally.body, radiusTop: 14, radiusBottom: 10 },
-    head: { ...tally.head, roundness: 14 },
-    eye: { ...tally.eye, roundnessRatio: 0.2 },
-    ear: { ...tally.ear, roundnessRatio: 0.2 },
+    // tall + slim with a wide flat head and thin slot eyes; long springy legs, fast skittery glide.
+    global: { ...tally.global, shadow: { ...tally.global.shadow, width: 56, fadeOutBodyWidths: 8 } },
+    body: { ...tally.body, width: 32, height: 72, radiusTop: 24, radiusBottom: 4 },
+    head: { ...tally.head, width: 116, height: 48, roundness: 24, turnDepthRatio: 0.64, tiltDepthRatio: 0.96, tiltRadiusGrow: 1.5, bodyOverlap: 11 },
+    antenna: { ...tally.antenna, width: 8, height: 36, signalScale: 2 },
+    eye: { ...tally.eye, width: 36, height: 14, roundnessRatio: 0.1, topRatio: 0.45, sideRatio: 0.22, turnCloserInset: 0.1, turnFurtherInset: 0.6, pupilInset: 5, tiltHeightRatio: 0.4, tiltPerspectivePower: 1.5 },
+    ear: { ...tally.ear, roundnessRatio: 0.3 },
+    arm: { ...tally.arm, upperWidth: 18, upperHeight: 54, lowerWidth: 18, lowerHeight: 44, upperAngle: 15, lowerAngle: -10, shoulderRatio: 0.05 },
+    leg: { ...tally.leg, legWidth: 18, legHeight: 64, footWidth: 24, footHeight: 16, legAngle: 3, footAngle: -3, hipInsetRatio: 0.1 },
+    gait: { ...tally.gait, strideDeg: 30, armSwingDeg: 24, bounceHeightRatio: 0.2, walkDropOffset: 2, walkMsPerBodyWidth: 480, travelPerBodyWidth: 3.9 },
+    jump: { ...tally.jump, heightBodyWidths: 4.5, flailSpeed: 0.4 },
+    drop: { ...tally.drop, flailSpeed: 1.5 },
   },
-  Squirt: {
+  Loop: {
     ...tally,
-    body: { ...tally.body, width: 40, height: 48 },
-    head: { ...tally.head, width: 96, height: 74 },
-    arm: { ...tally.arm, upperHeight: 40, lowerHeight: 32 },
-    leg: { ...tally.leg, legHeight: 28 },
-    jump: { ...tally.jump, heightBodyWidths: 6, flailSpeed: 2.5 }, // small + springy: high hop, frantic flail
-    drop: { ...tally.drop, flailSpeed: 3.5 }, // small + springy: frantic, buzzy fall flail
+    // broad-bodied like Scratch, but with a big, boxy near-square head (low roundness), oversized
+    // eyes and a long thin antenna; slow, bouncy, low-hop gait.
+    body: {
+      ...tally.body,
+      width: 74,
+      height: 74,
+      chest: { ...tally.body.chest, turnSlideRatio: 0.35 },
+    },
+    head: { ...tally.head, width: 96, height: 103, roundness: 12, turnDepthRatio: 1 },
+    antenna: { ...tally.antenna, width: 8, height: 44, radius: 4, restLean: -25, signalScale: 2.5 },
+    eye: {
+      ...tally.eye,
+      width: 48,
+      height: 44,
+      roundnessRatio: 0.2,
+      topRatio: 0.45,
+      sideRatio: 0.04,
+      turnCloserInset: -26.8 / 120,
+      pupilInset: 18,
+      turnWidthRatio: 0.6,
+      tiltHeightRatio: 0.8,
+    },
+    ear: { ...tally.ear, topRatio: 0.4, heightRatio: 0.34 },
+    arm: { ...tally.arm, upperWidth: 32, upperHeight: 54, lowerWidth: 28, lowerHeight: 44, shoulderRatio: 0.1 },
+    leg: {
+      ...tally.leg,
+      legWidth: 32,
+      legHeight: 54,
+      footWidth: 36,
+      footHeight: 28,
+      legAngle: 7,
+      footAngle: -7,
+      hipInsetRatio: 0.1,
+    },
+    gait: { ...tally.gait, strideDeg: 32, bounceHeightRatio: 0.2, leanDeg: 4, walkDropOffset: 2, walkMsPerBodyWidth: 440, travelPerBodyWidth: 1.6 },
+    jump: { ...tally.jump, heightBodyWidths: 2, flailSpeed: 0.6 },
   },
 };
 
@@ -303,6 +349,66 @@ function AnatomyEditor({
   );
 }
 
+// ---- Bounding-box overlay (Cmd/Ctrl+Shift+B) ---------------------------------------------------
+// Validates the published `measureFigure` against the REAL DOM: it unions getBoundingClientRect over
+// every rendered part inside the figure wrapper (the live, possibly mid-animation box) and draws it,
+// then overlays the analytical `measureFigure` box (anchored at the feet contact line) so the two can
+// be compared by eye. The panel prints both at scale 1.0. `measureFigure` is a REST-pose box, so the
+// closest match shows with mode="frozen" (or any calm frame); idle breathing nudges the DOM box a hair.
+function BBoxOverlay({
+  wrapRef,
+  scale,
+  anatomy,
+}: {
+  wrapRef: React.RefObject<HTMLDivElement | null>;
+  scale: number;
+  anatomy: Anatomy;
+}) {
+  const [dom, setDom] = useState<{ left: number; top: number; width: number; height: number; feetY: number } | null>(null);
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const wrap = wrapRef.current;
+      if (wrap) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, feetY = -Infinity;
+        for (const el of wrap.querySelectorAll<HTMLElement>("*")) {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) continue;
+          minX = Math.min(minX, r.left); minY = Math.min(minY, r.top);
+          maxX = Math.max(maxX, r.right); maxY = Math.max(maxY, r.bottom);
+        }
+        for (const el of wrap.querySelectorAll<HTMLElement>("[data-tally-foot]")) {
+          feetY = Math.max(feetY, el.getBoundingClientRect().bottom);
+        }
+        if (Number.isFinite(minX)) {
+          setDom({ left: minX, top: minY, width: maxX - minX, height: maxY - minY, feetY: Number.isFinite(feetY) ? feetY : maxY });
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [wrapRef]);
+
+  const m = measureFigure(anatomy, scale);
+  const r1 = (n: number) => Math.round((n / scale) * 10) / 10; // back to scale-1.0
+  if (!dom) return null;
+  const aLeft = dom.left + dom.width / 2 - m.width / 2; // analytical box, centered on the DOM box, feet-anchored
+  return (
+    <>
+      {/* live DOM union box (incl. shadow) */}
+      <div style={{ position: "fixed", left: dom.left, top: dom.top, width: dom.width, height: dom.height, border: "1px dashed #d11", pointerEvents: "none", zIndex: 1000 }} />
+      {/* analytical measureFigure box (figure silhouette, feet-anchored) */}
+      <div style={{ position: "fixed", left: aLeft, top: dom.feetY - m.height, width: m.width, height: m.height, border: "1px solid #06c", pointerEvents: "none", zIndex: 1000 }} />
+      <div style={{ position: "fixed", left: 12, bottom: 12, zIndex: 1001, background: "rgba(20,20,20,.9)", color: "#fff", font: "12px ui-monospace, monospace", padding: "8px 10px", borderRadius: 6, lineHeight: 1.5, pointerEvents: "none" }}>
+        <div><span style={{ color: "#f66" }}>▭ DOM union</span> (incl. shadow): {r1(dom.width)} × {r1(dom.height)} @1.0</div>
+        <div><span style={{ color: "#6af" }}>▭ measureFigure</span>: figure {r1(m.width)} × {r1(m.height)} · withShadow {r1(m.withShadow.width)} × {r1(m.withShadow.height)}</div>
+        <div style={{ color: "#aaa" }}>scale {scale} · DOM excludes blur; rest-pose match w/ frozen mode</div>
+      </div>
+    </>
+  );
+}
+
 function App() {
   const [themeName, setThemeName] = useState("default");
   const [characterName, setCharacterName] = useState("Scratch");
@@ -340,6 +446,20 @@ function App() {
     setTimeout(() => setCopied(false), 1500);
   };
   const activeAnatomy = editMode ? draft : characters[characterName];
+
+  // Cmd/Ctrl+Shift+B toggles the bounding-box overlay (measureFigure vs live DOM).
+  const [showBBox, setShowBBox] = useState(false);
+  const figureWrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "B" || e.key === "b")) {
+        e.preventDefault();
+        setShowBBox((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Toggle a capability override on (pinned at its rest value) or off. Engaged capabilities
   // hold independently, so you can pin several at once.
@@ -633,19 +753,22 @@ function App() {
             pointerEvents: "none",
           }}
         />
-        <Tally
-          scale={scale}
-          mode={mode}
-          view={view}
-          anatomy={activeAnatomy}
-          theme={themes[themeName]}
-          showAnchor={showAnchor}
-          groundShadow={groundShadow}
-          chestImage={logos[logoName]}
-          debugOverrides={overrides}
-          action={action}
-          speech={speech}
-        />
+        <div ref={figureWrapRef} style={{ position: "relative" }}>
+          <Tally
+            scale={scale}
+            mode={mode}
+            view={view}
+            anatomy={activeAnatomy}
+            theme={themes[themeName]}
+            showAnchor={showAnchor}
+            groundShadow={groundShadow}
+            chestImage={logos[logoName]}
+            debugOverrides={overrides}
+            action={action}
+            speech={speech}
+          />
+        </div>
+        {showBBox && <BBoxOverlay wrapRef={figureWrapRef} scale={scale} anatomy={activeAnatomy} />}
       </div>
 
       {/* Right: anatomy editor (only in edit mode) */}

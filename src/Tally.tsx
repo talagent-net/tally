@@ -88,7 +88,7 @@ const FOOT_GROUND_CALIB = -4;
 // robot. Motion-tuning magnitudes (stride°, slides, flail bounds, crouch°, …) stay module-level —
 // shared across all characters. A few absolute-px values (LEG_HIP_TUCK, ANTENNA_RIGHT) are still
 // literal pending the px→fraction pass; HEAD_TOP and BODY_BOTTOM are now derived (neck-anchor / grounding).
-function resolveRig(a: Anatomy) {
+export function resolveRig(a: Anatomy) {
   const OT = a.global.outlineThickness;
   const OFFSET = OT * 2; // container pad shared by body/head/arm/leg (visible stroke = OFFSET/2)
   // Grounding: the resting foot's lowest point below the leg's bottom end. The foot box
@@ -328,10 +328,21 @@ export interface TallyProps {
   // rides on top of whatever Tally is doing (idle, tracking, mid-gesture) and times itself out
   // after a read-proportional duration. Like `action`, it dedupes by value — to re-say identical
   // text, set this to null then back. Setting it to null is a no-op for an in-flight bubble (the
-  // bubble dismisses on its own timer, not by clearing the prop). `side` defaults to "auto" (opens
-  // toward the roomier side based on the figure's horizontal position in the viewport).
+  // bubble dismisses on its own timer, not by clearing the prop) — UNLESS `speechHold` is set, in
+  // which case clearing it is how the caller dismisses. `side` defaults to "auto" (opens toward the
+  // roomier side based on the figure's horizontal position in the viewport).
   speech?: SpeechSpec | null;
-  // Fired when a speech bubble finishes (times out and is removed).
+  // Hold the speech bubble open indefinitely instead of auto-dismissing on the read timer. Default
+  // false (timer-driven). When true, the bubble stays put after its entrance — no leave, no
+  // timer-driven `onSpeechEnd` — and dismissal becomes caller-driven: clear `speech` to null (or
+  // replace it with new text) to play the normal leave animation and fire `onSpeechEnd`. Use this
+  // for question bubbles whose Yes/No CTAs persist, so the prompt can't vanish before the user
+  // answers. Toggling this on/off mid-bubble takes effect immediately (true freezes the in-flight
+  // bubble open; false hands it back to the read timer). Default behavior is unchanged for callers
+  // that never pass it.
+  speechHold?: boolean;
+  // Fired when a speech bubble finishes (times out and is removed, or — with `speechHold` — is
+  // dismissed by the caller clearing `speech`).
   onSpeechEnd?: () => void;
   // Enlarge the speech bubble's TEXT independently of the figure: `speechScale` scales only the font
   // size and the max-width (text-wrap column) by `scale * speechScale`. Everything else — padding,
@@ -387,7 +398,7 @@ export function Tally(props: TallyProps) {
   );
 }
 
-function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, debugOverrides, action, onWalkComplete, speech, onSpeechEnd, speechScale = 1, groundShadow = false, view = "full" }: TallyProps) {
+function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, debugOverrides, action, onWalkComplete, speech, speechHold = false, onSpeechEnd, speechScale = 1, groundShadow = false, view = "full" }: TallyProps) {
   const s = (v: number) => v * scale;
   const rig = useRig();
   const { BODY_W, ARM_FLAIL_REST_CAP, LEG_FLAIL_REST_CAP, HEAD_HALF_W, HEAD_CENTER_ABOVE_ANCHOR, SPEECH_GAP, SPEECH_MAX_WIDTH, GAIT_WALK_MS, GAIT_TRAVEL_PER_BW, JUMP_HEIGHT_BW, JUMP_FLAIL_SPEED, DROP_FLAIL_SPEED } = rig;
@@ -998,6 +1009,11 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   const speechCounterRef = useRef(0);
   const onSpeechEndRef = useRef(onSpeechEnd);
   onSpeechEndRef.current = onSpeechEnd;
+  // Mirror of activeSpeech for the clear-while-holding path: the fire effect (deps: speech only)
+  // needs to know whether a bubble is actually showing before it begins a caller-driven leave,
+  // without re-running on every activeSpeech change.
+  const activeSpeechRef = useRef(activeSpeech);
+  activeSpeechRef.current = activeSpeech;
   // Resolve "auto" to a concrete side from the figure's horizontal screen position. We measure the
   // locomotion wrapper, NOT the root: the wrapper is a 0-size box that carries the body.x walk
   // displacement, so its rect.left is the figure's CURRENT center on screen (the root stays pinned
@@ -1014,16 +1030,23 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     const key = speech ? JSON.stringify(speech) : null;
     if (key === lastSpeechKeyRef.current) return;
     lastSpeechKeyRef.current = key;
-    if (!speech) return; // null/clear is a no-op — the bubble dismisses on its own timer
+    if (!speech) {
+      // null/clear is normally a no-op — the bubble dismisses on its own read timer. But a HELD
+      // bubble has no timer, so clearing the prop is the caller's dismissal: begin the exit now
+      // (only if one is actually showing, else we'd fire a spurious onSpeechEnd).
+      if (speechHold && activeSpeechRef.current) setSpeechLeaving(true);
+      return;
+    }
     setSpeechLeaving(false); // fresh utterance plays its entrance, even if one was exiting
     setActiveSpeech({ text: speech.text, side: resolveSide(speech.side ?? "auto"), id: ++speechCounterRef.current });
-  }, [speech, resolveSide]);
-  // Hold for the read duration, then begin the exit animation.
+  }, [speech, speechHold, resolveSide]);
+  // Hold for the read duration, then begin the exit animation. With speechHold the bubble stays
+  // open indefinitely (no read timer) and waits for the caller to clear `speech` instead.
   useEffect(() => {
-    if (!activeSpeech) return;
+    if (!activeSpeech || speechHold) return;
     const timer = setTimeout(() => setSpeechLeaving(true), speechDurationMs(activeSpeech.text));
     return () => clearTimeout(timer);
-  }, [activeSpeech]);
+  }, [activeSpeech, speechHold]);
   // Once leaving, let the exit animation play, then unmount and notify.
   useEffect(() => {
     if (!speechLeaving) return;
@@ -1317,18 +1340,7 @@ function Body({
   const s = (v: number) => v * scale;
   const bodyRef = useBodyRef(scale);
   const chestRef = useChestRef(scale);
-  const { BODY_W, BODY_H, BODY_OFFSET, BODY_BOTTOM, BODY_RADIUS_TOP, BODY_RADIUS_BOT, BODY_ROTATION, BODY_PIVOT_X, BODY_PIVOT_Y, CHEST_SIZE, CHEST_TOP_RATIO, CHEST_LOGO_SHADOW_OFFSET, CHEST_LOGO_SHADOW_BLUR } = useRig();
-
-  // Chained drop-shadows in all 8 directions at the same offset → a uniform outline halo around the
-  // logo silhouette. (filter applies before mask, so it lives on a wrapper around the masked div.)
-  const chestLogoShadow = [
-    [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1],
-  ]
-    .map(
-      ([dx, dy]) =>
-        `drop-shadow(${s(dx * CHEST_LOGO_SHADOW_OFFSET)}px ${s(dy * CHEST_LOGO_SHADOW_OFFSET)}px ${s(CHEST_LOGO_SHADOW_BLUR)}px ${theme.primaryMidDark})`,
-    )
-    .join(" ");
+  const { BODY_W, BODY_H, BODY_OFFSET, BODY_BOTTOM, BODY_RADIUS_TOP, BODY_RADIUS_BOT, BODY_ROTATION, BODY_PIVOT_X, BODY_PIVOT_Y, CHEST_SIZE, CHEST_TOP_RATIO } = useRig();
 
   const baseRadius = (extra: number) =>
     `${s(BODY_RADIUS_TOP + extra)}px ${s(BODY_RADIUS_TOP + extra)}px ${s(BODY_RADIUS_BOT + extra)}px ${s(BODY_RADIUS_BOT + extra)}px`;
@@ -1372,8 +1384,8 @@ function Body({
           borderRadius: baseRadius(0),
         }}
       />
-      {/* Chest — just the logo PNG, mask-tinted in the brightest palette tone and scaled to fill the
-          chest box. No background panel. Foreshortens/slides/crouches via useChestRef. */}
+      {/* Chest — just the logo PNG, mask-tinted in the silhouette outline color and scaled to fill the
+          chest box. No background panel, no halo. Foreshortens/slides/crouches via useChestRef. */}
       <div
         ref={chestRef}
         style={{
@@ -1387,33 +1399,22 @@ function Body({
         }}
       >
         {chestImage && (
-          // Outer wrapper carries the drop-shadow; inner div carries the mask. The filter must live
-          // on a SEPARATE element from the mask — CSS applies `filter` before `mask`, so a shadow on
-          // the masked element itself gets clipped away by its own mask. Applied to the wrapper, the
-          // shadow follows the already-masked silhouette.
+          // A single mask-tinted copy of the logo in the silhouette outline color — no halo.
           <div
             style={{
               position: "absolute",
               inset: 0,
-              filter: chestLogoShadow,
+              backgroundColor: theme.outline,
+              WebkitMaskImage: `url(${chestImage})`,
+              maskImage: `url(${chestImage})`,
+              WebkitMaskSize: "100% 100%",
+              maskSize: "100% 100%",
+              WebkitMaskRepeat: "no-repeat",
+              maskRepeat: "no-repeat",
+              WebkitMaskPosition: "center",
+              maskPosition: "center",
             }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                backgroundColor: theme.primaryDark,
-                WebkitMaskImage: `url(${chestImage})`,
-                maskImage: `url(${chestImage})`,
-                WebkitMaskSize: "100% 100%",
-                maskSize: "100% 100%",
-                WebkitMaskRepeat: "no-repeat",
-                maskRepeat: "no-repeat",
-                WebkitMaskPosition: "center",
-                maskPosition: "center",
-              }}
-            />
-          </div>
+          />
         )}
       </div>
       {children}
