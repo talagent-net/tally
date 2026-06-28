@@ -12,19 +12,19 @@ const smoothstep = (t: number) => t * t * (3 - 2 * t);
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 // ── Sleep-pose targets (capability values) — TWEAK ME ───────────────────────────────────────────
-const SLEEP_BLINK = 0;          // eyes fully closed (eyes.blink: 1 = open, 0 = shut)
-const SLEEP_TILT = 0.06;        // head tilted down (head.tilt: 0.5 = straight, 0 = looking down)
-const SLEEP_BOB = 0.44;         // head lolls slightly to one side (head.bob: 0.5 = upright)
-const SLEEP_ANTENNA = 0.12;     // antenna.wiggle pushed off-rest so the antenna droops limp (with its rest lean)
+const SLEEP_BLINK = 0; // eyes fully closed (eyes.blink: 1 = open, 0 = shut)
+const SLEEP_TILT = 0.06; // head tilted down (head.tilt: 0.5 = straight, 0 = looking down)
+const SLEEP_BOB = 0.44; // head lolls slightly to one side (head.bob: 0.5 = upright)
+const SLEEP_ANTENNA = 0.12; // antenna.wiggle pushed off-rest so the antenna droops limp (with its rest lean)
 const SLEEP_CROUCH_BASE = 0.12; // resting crouch the breathing oscillates around (0 = standing)
 
-const SETTLE_MS = 900;          // ease from the live pose into the sleep pose (how long "drifting off" takes)
+const SETTLE_MS = 900; // ease from the live pose into the sleep pose (how long "drifting off" takes)
 
 // ── Breathing — a slow sine on body.crouch, with a tiny synced head nod. sin(0)=0 at the settle
 // start, so it phases in with no jump. ──────────────────────────────────────────────────────────
-const BREATH_PERIOD_MS = 4200;   // one full inhale+exhale
-const BREATH_CROUCH_AMP = 0.05;  // body.crouch swings ± this around the base (the visible "breath") — shallow
-const BREATH_TILT_AMP = 0.014;   // head dips ± this in sync (very subtle)
+const BREATH_PERIOD_MS = 4200; // one full inhale+exhale
+const BREATH_CROUCH_AMP = 0.05; // body.crouch swings ± this around the base (the visible "breath") — shallow
+const BREATH_TILT_AMP = 0.014; // head dips ± this in sync (very subtle)
 
 export type SnoozeAnimation = {
   blink: AnimationFn;
@@ -46,11 +46,18 @@ export function createSnoozeAnimation(config: SnoozeConfig = {}): SnoozeAnimatio
 
   let startElapsed: number | null = null;
   // Defaults are each capability's rest value, used when no initial pose is supplied.
-  let fromBlink = 1, fromTilt = 0.5, fromBob = 0.5, fromAntenna = 0.5, fromCrouch = 0;
+  let fromBlink = 1,
+    fromTilt = 0.5,
+    fromBob = 0.5,
+    fromAntenna = 0.5,
+    fromCrouch = 0;
 
   let lastElapsed = -1;
-  let curBlink = SLEEP_BLINK, curTilt = SLEEP_TILT, curBob = SLEEP_BOB;
-  let curAntenna = SLEEP_ANTENNA, curCrouch = SLEEP_CROUCH_BASE;
+  let curBlink = SLEEP_BLINK,
+    curTilt = SLEEP_TILT,
+    curBob = SLEEP_BOB;
+  let curAntenna = SLEEP_ANTENNA,
+    curCrouch = SLEEP_CROUCH_BASE;
 
   const step = (elapsed: number) => {
     if (elapsed === lastElapsed) return;
@@ -82,10 +89,25 @@ export function createSnoozeAnimation(config: SnoozeConfig = {}): SnoozeAnimatio
   };
 
   return {
-    blink: (e) => { step(e); return curBlink; },
-    headTilt: (e) => { step(e); return curTilt; },
-    headBob: (e) => { step(e); return curBob; },
-    antennaWiggle: (e) => { step(e); return curAntenna; },
-    bodyCrouch: (e) => { step(e); return curCrouch; },
+    blink: (e) => {
+      step(e);
+      return curBlink;
+    },
+    headTilt: (e) => {
+      step(e);
+      return curTilt;
+    },
+    headBob: (e) => {
+      step(e);
+      return curBob;
+    },
+    antennaWiggle: (e) => {
+      step(e);
+      return curAntenna;
+    },
+    bodyCrouch: (e) => {
+      step(e);
+      return curCrouch;
+    },
   };
 }

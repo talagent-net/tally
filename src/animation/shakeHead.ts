@@ -7,10 +7,10 @@ import { createCyclicAnimation, type CyclicDirection } from "./cyclic";
 // no value jump.
 
 const NEUTRAL = 0.5;
-const AMPLITUDE = 0.12;             // ±0.12 from neutral — clearly visible without being a profile turn
-const CYCLE_MS = 450;               // one full left-right-left cycle
+const AMPLITUDE = 0.12; // ±0.12 from neutral — clearly visible without being a profile turn
+const CYCLE_MS = 450; // one full left-right-left cycle
 const CYCLES = 2.5;
-const DIRECTION: CyclicDirection = 1;   // +1 = shake RIGHT first then left; -1 = left first
+const DIRECTION: CyclicDirection = 1; // +1 = shake RIGHT first then left; -1 = left first
 
 export const SHAKE_HEAD_DURATION_MS = CYCLE_MS * CYCLES;
 

@@ -16,7 +16,7 @@ import type { AnimationFn } from "./engine";
 // without double-advancing.
 
 const NEUTRAL = 0.5;
-const BOB_MIN = 0.4;  // ±0.1 from neutral → ±3.6° roll with MAX_HEAD_BOB_DEGREES=18
+const BOB_MIN = 0.4; // ±0.1 from neutral → ±3.6° roll with MAX_HEAD_BOB_DEGREES=18
 const BOB_MAX = 0.6;
 
 const MIN_HOLD_MS = 2000;
@@ -31,8 +31,8 @@ type Phase = "hold" | "slide";
 
 // Shared with `track` so idle and cursor-follow use the same ability ranges.
 export type LookAroundConfig = {
-  turnMax: number;       // max effective head turn from 0.5
-  tiltMax: number;       // max head.tilt from 0.5
+  turnMax: number; // max effective head turn from 0.5
+  tiltMax: number; // max head.tilt from 0.5
   upperFraction: number; // share of the turn carried by a slight upperbody.turn (rest stays a head offset)
   // Optional pose to START from, captured lazily on the first tick (so capabilities are registered
   // and hold their live values by then). Lets idle continue from wherever the head currently is —
@@ -57,10 +57,14 @@ export function createLookAroundAnimation(config: LookAroundConfig): LookAroundA
 
   // Each channel keeps a from/to for the current slide. turn is stored pre-split as head.turn +
   // upperbody.turn targets so both ease together.
-  let fromTurn = NEUTRAL, toTurn = NEUTRAL;
-  let fromUpper = NEUTRAL, toUpper = NEUTRAL;
-  let fromTilt = NEUTRAL, toTilt = NEUTRAL;
-  let fromBob = NEUTRAL, toBob = NEUTRAL;
+  let fromTurn = NEUTRAL,
+    toTurn = NEUTRAL;
+  let fromUpper = NEUTRAL,
+    toUpper = NEUTRAL;
+  let fromTilt = NEUTRAL,
+    toTilt = NEUTRAL;
+  let fromBob = NEUTRAL,
+    toBob = NEUTRAL;
 
   let lastElapsed = -1;
   let curTurn = NEUTRAL;
@@ -99,16 +103,25 @@ export function createLookAroundAnimation(config: LookAroundConfig): LookAroundA
 
     if (phase === "hold") {
       if (t < 1) {
-        curTurn = toTurn; curUpper = toUpper; curTilt = toTilt; curBob = toBob;
+        curTurn = toTurn;
+        curUpper = toUpper;
+        curTilt = toTilt;
+        curBob = toBob;
         return;
       }
       // Hold expired — pick the next target and slide from the current pose to it.
       phase = "slide";
       phaseStartedAt = elapsed;
       phaseDuration = randRange(MIN_SLIDE_MS, MAX_SLIDE_MS);
-      fromTurn = toTurn; fromUpper = toUpper; fromTilt = toTilt; fromBob = toBob;
+      fromTurn = toTurn;
+      fromUpper = toUpper;
+      fromTilt = toTilt;
+      fromBob = toBob;
       pickTargets();
-      curTurn = fromTurn; curUpper = fromUpper; curTilt = fromTilt; curBob = fromBob;
+      curTurn = fromTurn;
+      curUpper = fromUpper;
+      curTilt = fromTilt;
+      curBob = fromBob;
       return;
     }
 
@@ -117,7 +130,10 @@ export function createLookAroundAnimation(config: LookAroundConfig): LookAroundA
       phase = "hold";
       phaseStartedAt = elapsed;
       phaseDuration = randRange(MIN_HOLD_MS, MAX_HOLD_MS);
-      curTurn = toTurn; curUpper = toUpper; curTilt = toTilt; curBob = toBob;
+      curTurn = toTurn;
+      curUpper = toUpper;
+      curTilt = toTilt;
+      curBob = toBob;
       return;
     }
     const eased = smoothstep(t);
@@ -128,9 +144,21 @@ export function createLookAroundAnimation(config: LookAroundConfig): LookAroundA
   };
 
   return {
-    headTurn: (elapsed) => { step(elapsed); return curTurn; },
-    headBob: (elapsed) => { step(elapsed); return curBob; },
-    headTilt: (elapsed) => { step(elapsed); return curTilt; },
-    upperTurn: (elapsed) => { step(elapsed); return curUpper; },
+    headTurn: (elapsed) => {
+      step(elapsed);
+      return curTurn;
+    },
+    headBob: (elapsed) => {
+      step(elapsed);
+      return curBob;
+    },
+    headTilt: (elapsed) => {
+      step(elapsed);
+      return curTilt;
+    },
+    upperTurn: (elapsed) => {
+      step(elapsed);
+      return curUpper;
+    },
   };
 }

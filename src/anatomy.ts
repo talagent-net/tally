@@ -292,7 +292,7 @@ export const avagent: Anatomy = {
     tiltDepthRatio: 0.92,
     turnRadiusGrow: 1.4,
     tiltRadiusGrow: 1.25,
-    shading: { highlightRatio: .5, shadowCrescentRatio: .5 },
+    shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 },
     bodyOverlap: 17, // head neck sinks 17px into the body top (today: top −85 + full height 102)
   },
   antenna: {
@@ -313,7 +313,7 @@ export const avagent: Anatomy = {
     pivot: { xFrac: 0.5, yFrac: 0.5 },
     topRatio: 0.55,
     sideRatio: 0.24,
-    turnCloserInset: 26.8 / 120,  // closer eye's inset from its leading edge at full turn (× headW) — reproduces today
+    turnCloserInset: 26.8 / 120, // closer eye's inset from its leading edge at full turn (× headW) — reproduces today
     turnFurtherInset: 78.8 / 120, // further eye's inset from its trailing edge at full turn (× headW) — reproduces today
     pupilInset: 4,
     turnWidthRatio: 0.24,
@@ -345,23 +345,23 @@ export const avagent: Anatomy = {
     hipTuckRatio: 26 / 64, // hip overlap into the body top, as a fraction of body height
   },
   speech: {
-    gap: 19,        // head edge → bubble inner edge
-    maxWidth: 192,  // text wrap column
+    gap: 19, // head edge → bubble inner edge
+    maxWidth: 192, // text wrap column
   },
   gait: {
-    strideDeg: 40,             // leg swing extension (matches today)
-    armSwingDeg: 22,           // arm counter-swing (matches today's ARM_STRIDE_DEG)
+    strideDeg: 40, // leg swing extension (matches today)
+    armSwingDeg: 22, // arm counter-swing (matches today's ARM_STRIDE_DEG)
     bounceHeightRatio: 7 / 64, // walk step bounce height (matches today's BODY_BOUNCE_PX)
-    leanDeg: 7,                // walk lean into travel (matches today's BODY_LEAN_DEG)
-    walkDropOffset: 0,         // scaled-px drop while walking (0 = today's behavior, no drop)
-    walkMsPerBodyWidth: 240,   // walk pace (matches today)
-    travelPerBodyWidth: 2.2,   // ground covered per walk (matches today's WALK_TRAVEL_PER_BODYWIDTH)
+    leanDeg: 7, // walk lean into travel (matches today's BODY_LEAN_DEG)
+    walkDropOffset: 0, // scaled-px drop while walking (0 = today's behavior, no drop)
+    walkMsPerBodyWidth: 240, // walk pace (matches today)
+    travelPerBodyWidth: 2.2, // ground covered per walk (matches today's WALK_TRAVEL_PER_BODYWIDTH)
   },
   jump: {
-    heightBodyWidths: 4,  // apex height (matches today's JUMP_HEIGHT_BODYWIDTHS)
-    flailSpeed: 1.5,      // airborne flail rate (matches today's JUMP_FLAIL_SPEED)
+    heightBodyWidths: 4, // apex height (matches today's JUMP_HEIGHT_BODYWIDTHS)
+    flailSpeed: 1.5, // airborne flail rate (matches today's JUMP_FLAIL_SPEED)
   },
   drop: {
-    flailSpeed: 2.5,      // fall flail rate (matches today's DROP_FLAIL_SPEED)
+    flailSpeed: 2.5, // fall flail rate (matches today's DROP_FLAIL_SPEED)
   },
 };

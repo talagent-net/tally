@@ -47,18 +47,18 @@ const SPEECH_PAD_H = 12;
 const SPEECH_RADIUS = 12;
 const SPEECH_FONT = 15;
 const SPEECH_BORDER = 4;
-const SPEECH_TAIL_LEN = 14;      // how far the tail protrudes from the bubble side toward the head
-const SPEECH_TAIL_HALF = 12;     // half the tail's base height (the base is flush against the bubble side)
+const SPEECH_TAIL_LEN = 14; // how far the tail protrudes from the bubble side toward the head
+const SPEECH_TAIL_HALF = 12; // half the tail's base height (the base is flush against the bubble side)
 
 // Head-follow: the bubble drifts slightly with head motion so it feels attached to Avagent. All in
 // unscaled px at full capability deflection (multiplied by `scale` and by the live deflection).
 // Head turn always pulls the bubble CLOSER to the head (inward), never away — with separate
 // magnitudes for the head turning toward the bubble vs away from it.
 const SPEECH_FOLLOW_TURN_TOWARD_PX = 24; // head turning TOWARD the bubble → bubble moves inward (closer)
-const SPEECH_FOLLOW_TURN_AWAY_PX = 24;   // head turning AWAY from the bubble → bubble moves inward (closer)
+const SPEECH_FOLLOW_TURN_AWAY_PX = 24; // head turning AWAY from the bubble → bubble moves inward (closer)
 const SPEECH_FOLLOW_TILT_PX = 12; // head.tilt up/down → bubble up/down
 const SPEECH_FOLLOW_BOB_Y_PX = 14; // head.bob: right-bob → up, left-bob → down (vertical component)
-const SPEECH_FOLLOW_BOB_X_PX = 14;  // head.bob horizontal: right-bob → inward, left-bob → outward
+const SPEECH_FOLLOW_BOB_X_PX = 14; // head.bob horizontal: right-bob → inward, left-bob → outward
 
 // Entrance/exit timing. The entrance uses an easeOutBack curve (overshoots past full size then
 // settles) for a springy "pop". The exit is a quick, subtle shrink-and-fade back toward Avagent.
@@ -88,10 +88,10 @@ export function SpeechBubble({
   theme: ColorTheme;
   leaving?: boolean; // when true, play the exit animation (Avagent unmounts after SPEECH_EXIT_MS)
   // Head anchor (DERIVED from rig) + authored rules — the bubble parks at the real head's side/center.
-  headHalfW: number;             // (HEAD_W + HEAD_OFFSET) / 2
+  headHalfW: number; // (HEAD_W + HEAD_OFFSET) / 2
   headCenterAboveAnchor: number; // head vertical center above the anchor
-  gap: number;                   // head edge → bubble inner edge
-  maxWidth: number;              // text wrap column
+  gap: number; // head edge → bubble inner edge
+  maxWidth: number; // text wrap column
 }) {
   // Two scale factors. `s` is the plain FIGURE scale and drives everything structural — the anchor
   // (offset, top), head-follow drift, the whole tail (length, body, outline), the outline stroke
@@ -131,9 +131,9 @@ export function SpeechBubble({
       const turnPx = towardBubble ? SPEECH_FOLLOW_TURN_TOWARD_PX : SPEECH_FOLLOW_TURN_AWAY_PX;
       const turnDx = inwardSign * Math.abs(turnDefl) * 2 * turnPx; // inward in both directions
 
-      const tiltDy = -(tilt - 0.5) * 2 * SPEECH_FOLLOW_TILT_PX;   // look up (tilt>0.5) → move up (−y)
-      const bobDefl = bob - 0.5;                                  // + = right-bob, − = left-bob
-      const bobDy = -bobDefl * 2 * SPEECH_FOLLOW_BOB_Y_PX;        // right-bob → up, left-bob → down
+      const tiltDy = -(tilt - 0.5) * 2 * SPEECH_FOLLOW_TILT_PX; // look up (tilt>0.5) → move up (−y)
+      const bobDefl = bob - 0.5; // + = right-bob, − = left-bob
+      const bobDy = -bobDefl * 2 * SPEECH_FOLLOW_BOB_Y_PX; // right-bob → up, left-bob → down
       // Signed (not abs): right-bob → inward, left-bob → outward.
       const bobDx = inwardSign * bobDefl * 2 * SPEECH_FOLLOW_BOB_X_PX;
 
@@ -150,23 +150,31 @@ export function SpeechBubble({
   // colored one flush at the bubble edge, then a slightly smaller white one shifted a border-width
   // INTO the bubble — so the white fill bridges into the bubble interior (no seam) while the outline
   // peeks out as a uniform border along the two slanted edges and the apex.
-  const B = s(SPEECH_BORDER * .75);    // tail outline stroke — figure scale (matches the bubble border)
-  const L = s(SPEECH_TAIL_LEN);        // tail reach to the head — figure scale (keeps the apex on the head)
-  const HH = s(SPEECH_TAIL_HALF);      // tail body half-height — figure scale (tail unaffected by speechScale)
+  const B = s(SPEECH_BORDER * 0.75); // tail outline stroke — figure scale (matches the bubble border)
+  const L = s(SPEECH_TAIL_LEN); // tail reach to the head — figure scale (keeps the apex on the head)
+  const HH = s(SPEECH_TAIL_HALF); // tail body half-height — figure scale (tail unaffected by speechScale)
   const outlineTail: React.CSSProperties =
     side === "left"
       ? {
           // base flush at the bubble's right edge, apex pointing right (toward the head)
-          position: "absolute", top: "50%", left: "100%", transform: "translateY(-50%)",
-          width: 0, height: 0,
+          position: "absolute",
+          top: "50%",
+          left: "100%",
+          transform: "translateY(-50%)",
+          width: 0,
+          height: 0,
           borderTop: `${HH}px solid transparent`,
           borderBottom: `${HH}px solid transparent`,
           borderLeft: `${L}px solid ${theme.outline}`,
         }
       : {
           // base flush at the bubble's left edge, apex pointing left (toward the head)
-          position: "absolute", top: "50%", right: "100%", transform: "translateY(-50%)",
-          width: 0, height: 0,
+          position: "absolute",
+          top: "50%",
+          right: "100%",
+          transform: "translateY(-50%)",
+          width: 0,
+          height: 0,
           borderTop: `${HH}px solid transparent`,
           borderBottom: `${HH}px solid transparent`,
           borderRight: `${L}px solid ${theme.outline}`,
@@ -174,15 +182,23 @@ export function SpeechBubble({
   const fillTail: React.CSSProperties =
     side === "left"
       ? {
-          position: "absolute", top: "50%", left: `calc(100% - ${B}px)`, transform: "translateY(-50%)",
-          width: 0, height: 0,
+          position: "absolute",
+          top: "50%",
+          left: `calc(100% - ${B}px)`,
+          transform: "translateY(-50%)",
+          width: 0,
+          height: 0,
           borderTop: `${HH - B}px solid transparent`,
           borderBottom: `${HH - B}px solid transparent`,
           borderLeft: `${L - B}px solid #ffffff`,
         }
       : {
-          position: "absolute", top: "50%", right: `calc(100% - ${B}px)`, transform: "translateY(-50%)",
-          width: 0, height: 0,
+          position: "absolute",
+          top: "50%",
+          right: `calc(100% - ${B}px)`,
+          transform: "translateY(-50%)",
+          width: 0,
+          height: 0,
           borderTop: `${HH - B}px solid transparent`,
           borderBottom: `${HH - B}px solid transparent`,
           borderRight: `${L - B}px solid #ffffff`,
@@ -193,46 +209,46 @@ export function SpeechBubble({
     // The bubble (with its own keyframe transform) lives inside, so the two transforms compose
     // without fighting.
     <div ref={followRef} style={{ position: "absolute", top: 0, left: 0, width: 0, height: 0 }}>
-    <div
-      style={{
-        position: "absolute",
-        top: s(-headCenterAboveAnchor),
-        // Park the inner edge `offset` from center; the bubble grows away from the head, the tail
-        // toward it. translateY(-50%) centers the bubble on the head's vertical center; the entrance
-        // grows from the tail side (origin toward the head) so it reads as coming out of Avagent.
-        ...(side === "left" ? { right: offset } : { left: offset }),
-        transform: "translateY(-50%)",
-        transformOrigin: side === "left" ? "right center" : "left center",
-        zIndex: 50, // above the whole figure (Body establishes its own stacking context below this)
-        // Size to the text's natural width, but wrap once it would exceed SPEECH_MAX_WIDTH. Without
-        // an explicit width an absolutely-positioned box is shrink-to-fit and collapses to one
-        // character per line; max-content sizes to the content and the cap forces normal wrapping.
-        width: "max-content",
-        maxWidth: sb(maxWidth), // text-wrap column widens with the font
-        boxSizing: "border-box",
-        padding: `${s(SPEECH_PAD_V)}px ${s(SPEECH_PAD_H)}px`,
-        background: "#ffffff",
-        border: `${s(SPEECH_BORDER)}px solid ${theme.outline}`,
-        borderRadius: s(SPEECH_RADIUS),
-        color: theme.outline,
-        fontSize: sb(SPEECH_FONT), // the only true text-size scale
-        lineHeight: 1.3,
-        fontFamily: theme.fontFamily ?? DEFAULT_FONT_FAMILY,
-        fontWeight: 500,
-        whiteSpace: "normal",
-        overflowWrap: "break-word", // only break a single over-long token, not every word
-        textAlign: "left",
-        pointerEvents: "none",
-        userSelect: "none",
-        // Springy entrance (easeOutBack overshoots then settles); subtle shrink-and-fade exit. Both
-        // keep translateY(-50%) so vertical centering holds, and scale from the tail side (the
-        // bubble's transformOrigin) so it pops out of / retracts back toward Avagent.
-        animation: leaving
-          ? `avagent-speech-out ${SPEECH_OUT_MS}ms cubic-bezier(0.4, 0, 1, 1) forwards`
-          : `avagent-speech-in ${SPEECH_IN_MS}ms cubic-bezier(0.34, 1.56, 0.64, 1) both`,
-      }}
-    >
-      <style>{`@keyframes avagent-speech-in {
+      <div
+        style={{
+          position: "absolute",
+          top: s(-headCenterAboveAnchor),
+          // Park the inner edge `offset` from center; the bubble grows away from the head, the tail
+          // toward it. translateY(-50%) centers the bubble on the head's vertical center; the entrance
+          // grows from the tail side (origin toward the head) so it reads as coming out of Avagent.
+          ...(side === "left" ? { right: offset } : { left: offset }),
+          transform: "translateY(-50%)",
+          transformOrigin: side === "left" ? "right center" : "left center",
+          zIndex: 50, // above the whole figure (Body establishes its own stacking context below this)
+          // Size to the text's natural width, but wrap once it would exceed SPEECH_MAX_WIDTH. Without
+          // an explicit width an absolutely-positioned box is shrink-to-fit and collapses to one
+          // character per line; max-content sizes to the content and the cap forces normal wrapping.
+          width: "max-content",
+          maxWidth: sb(maxWidth), // text-wrap column widens with the font
+          boxSizing: "border-box",
+          padding: `${s(SPEECH_PAD_V)}px ${s(SPEECH_PAD_H)}px`,
+          background: "#ffffff",
+          border: `${s(SPEECH_BORDER)}px solid ${theme.outline}`,
+          borderRadius: s(SPEECH_RADIUS),
+          color: theme.outline,
+          fontSize: sb(SPEECH_FONT), // the only true text-size scale
+          lineHeight: 1.3,
+          fontFamily: theme.fontFamily ?? DEFAULT_FONT_FAMILY,
+          fontWeight: 500,
+          whiteSpace: "normal",
+          overflowWrap: "break-word", // only break a single over-long token, not every word
+          textAlign: "left",
+          pointerEvents: "none",
+          userSelect: "none",
+          // Springy entrance (easeOutBack overshoots then settles); subtle shrink-and-fade exit. Both
+          // keep translateY(-50%) so vertical centering holds, and scale from the tail side (the
+          // bubble's transformOrigin) so it pops out of / retracts back toward Avagent.
+          animation: leaving
+            ? `avagent-speech-out ${SPEECH_OUT_MS}ms cubic-bezier(0.4, 0, 1, 1) forwards`
+            : `avagent-speech-in ${SPEECH_IN_MS}ms cubic-bezier(0.34, 1.56, 0.64, 1) both`,
+        }}
+      >
+        <style>{`@keyframes avagent-speech-in {
         from { opacity: 0; transform: translateY(-50%) scale(0.4); }
         to { opacity: 1; transform: translateY(-50%) scale(1); }
       }
@@ -240,10 +256,10 @@ export function SpeechBubble({
         from { opacity: 1; transform: translateY(-50%) scale(1); }
         to { opacity: 0; transform: translateY(-50%) scale(0.6); }
       }`}</style>
-      {text}
-      <div style={outlineTail} />
-      <div style={fillTail} />
-    </div>
+        {text}
+        <div style={outlineTail} />
+        <div style={fillTail} />
+      </div>
     </div>
   );
 }

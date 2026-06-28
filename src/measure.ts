@@ -46,7 +46,8 @@ function translate(x: number, y: number): Mat {
 // CSS rotate(deg): positive = clockwise in a y-down space.
 function rotate(deg: number): Mat {
   const r = (deg * Math.PI) / 180;
-  const c = Math.cos(r), s = Math.sin(r);
+  const c = Math.cos(r),
+    s = Math.sin(r);
   return [c, s, -s, c, 0, 0];
 }
 function apply(m: Mat, x: number, y: number): [number, number] {
@@ -68,7 +69,12 @@ interface Bounds {
 }
 // Fold a w×h rectangle (local box 0,0→w,h), mapped to anchor coords by `m`, into the running bounds.
 function addRect(b: Bounds, m: Mat, w: number, h: number): void {
-  for (const [cx, cy] of [[0, 0], [w, 0], [0, h], [w, h]] as const) {
+  for (const [cx, cy] of [
+    [0, 0],
+    [w, 0],
+    [0, h],
+    [w, h],
+  ] as const) {
     const [x, y] = apply(m, cx, cy);
     if (x < b.minX) b.minX = x;
     if (y < b.minY) b.minY = y;
@@ -115,9 +121,24 @@ export function measureFigure(anatomy: Anatomy = avagent, scale = 1): FigureBox 
   // edge (right:0). Upper rotates about the shoulder; forearm rotates about the elbow within the upper.
   const shoulderTop = r.BODY_H * r.ARM_SHOULDER_RATIO;
   const mLUpper = mul(mBody, elem(0, shoulderTop, r.ARM_UPPER_W / 2, r.ARM_UPPER_W / 2, r.LEFT_UPPER_ANGLE));
-  const mLFore = mul(mLUpper, elem(0, r.ARM_UPPER_H - r.ARM_LOWER_W, r.ARM_UPPER_W / 2, r.ARM_LOWER_W / 2, r.LEFT_LOWER_ANGLE));
-  const mRUpper = mul(mBody, elem(W_b - r.ARM_UPPER_W, shoulderTop, r.ARM_UPPER_W / 2, r.ARM_UPPER_W / 2, r.RIGHT_UPPER_ANGLE));
-  const mRFore = mul(mRUpper, elem(r.ARM_UPPER_W - r.ARM_LOWER_W, r.ARM_UPPER_H - r.ARM_LOWER_W, r.ARM_LOWER_W / 2, r.ARM_LOWER_W / 2, r.RIGHT_LOWER_ANGLE));
+  const mLFore = mul(
+    mLUpper,
+    elem(0, r.ARM_UPPER_H - r.ARM_LOWER_W, r.ARM_UPPER_W / 2, r.ARM_LOWER_W / 2, r.LEFT_LOWER_ANGLE),
+  );
+  const mRUpper = mul(
+    mBody,
+    elem(W_b - r.ARM_UPPER_W, shoulderTop, r.ARM_UPPER_W / 2, r.ARM_UPPER_W / 2, r.RIGHT_UPPER_ANGLE),
+  );
+  const mRFore = mul(
+    mRUpper,
+    elem(
+      r.ARM_UPPER_W - r.ARM_LOWER_W,
+      r.ARM_UPPER_H - r.ARM_LOWER_W,
+      r.ARM_LOWER_W / 2,
+      r.ARM_LOWER_W / 2,
+      r.RIGHT_LOWER_ANGLE,
+    ),
+  );
 
   // Legs (outline layer) + feet. Hip top is HEAD-... no: the leg wrapper spans the body box height, and
   // the leg's top (hip) lands LEG_HIP_TUCK up from the body bottom → y = H_b - LEG_HIP_TUCK in body coords.

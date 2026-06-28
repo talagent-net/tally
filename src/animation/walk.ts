@@ -17,10 +17,10 @@ import type { AnimationFn } from "./engine";
 // held back until the turn completes.
 
 const WALK_MS_PER_BODYWIDTH = 240; // TRAVEL SPEED — ms of travel per body-width covered. Sets the
-                                   // total walk duration. Changing it does NOT change how many
-                                   // step cycles occur, only how fast the character moves.
-const TURN_IN_MS = 120;            // time to pivot toward the travel direction before striding
-const SETTLE_MS = 160;             // time to unwind facing/lean back to neutral after arriving
+// total walk duration. Changing it does NOT change how many
+// step cycles occur, only how fast the character moves.
+const TURN_IN_MS = 120; // time to pivot toward the travel direction before striding
+const SETTLE_MS = 160; // time to unwind facing/lean back to neutral after arriving
 // HORIZONTAL ACCELERATION — fixed ms the body.x slide takes to ease IN at the start and OUT at the
 // end (a trapezoidal velocity profile: ramp up → constant-speed cruise → ramp down). Independent of
 // distance — a longer walk just gets a longer cruise. If a walk is too short to fit accel + decel,
@@ -37,10 +37,10 @@ const STEPS_PER_BODYWIDTH = 2;
 // 1.0 = feet roughly track the ground. Now per-character (gait.travelPerBodyWidth); this is the default.
 const WALK_TRAVEL_PER_BODYWIDTH = 2.2;
 
-const WALK_FACE_TURN = 0.5;        // body.turn offset from 0.5 toward the travel direction (0.5 = full profile)
-const WALK_LEAN = 0.3;             // body.lean offset from 0.5 toward the travel direction (normalized)
-const WALK_LEG_SWING = 0.5;        // legs.stride amplitude around 0.5 (0.5 = full normalized swing both ways)
-const WALK_BOUNCE_RANGE = 0.4;     // fraction of the FULL body.bounce range used per walk step
+const WALK_FACE_TURN = 0.5; // body.turn offset from 0.5 toward the travel direction (0.5 = full profile)
+const WALK_LEAN = 0.3; // body.lean offset from 0.5 toward the travel direction (normalized)
+const WALK_LEG_SWING = 0.5; // legs.stride amplitude around 0.5 (0.5 = full normalized swing both ways)
+const WALK_BOUNCE_RANGE = 0.4; // fraction of the FULL body.bounce range used per walk step
 
 const TURN_NEUTRAL = 0.5;
 const LEAN_NEUTRAL = 0.5;
@@ -116,8 +116,8 @@ function createSwing(steps: number, startMs: number, endMs: number): AnimationFn
 export function createWalk(
   direction: WalkDirection,
   distance: number,
-  walkMsPerBodyWidth: number = WALK_MS_PER_BODYWIDTH,        // per-character pace (gait); default = today's value
-  travelPerBodyWidth: number = WALK_TRAVEL_PER_BODYWIDTH,    // per-character travel (gait); default = today's value
+  walkMsPerBodyWidth: number = WALK_MS_PER_BODYWIDTH, // per-character pace (gait); default = today's value
+  travelPerBodyWidth: number = WALK_TRAVEL_PER_BODYWIDTH, // per-character travel (gait); default = today's value
 ): Walk {
   const dist = Math.max(0, distance);
   const sign = direction === "right" ? 1 : -1;

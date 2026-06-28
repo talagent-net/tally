@@ -11,9 +11,9 @@ import type { AnimationFn } from "./engine";
 // driven from the `fallMs` + `offsetBodyWidths` this returns.
 
 const DROP_FALL_MS_PER_BODYWIDTH = 110; // fall duration per body-width of height (linear in distance)
-const DROP_OFFSET_PER_BODYWIDTH = 2.2;  // body-widths of on-screen height per distance unit (matches come's travel scale)
-const DROP_IMPACT_MS = 160;             // landing compress (0→1 crouch) — fast
-const DROP_RECOVER_MS = 360;            // stand up (1→0 crouch) — slower
+const DROP_OFFSET_PER_BODYWIDTH = 2.2; // body-widths of on-screen height per distance unit (matches come's travel scale)
+const DROP_IMPACT_MS = 160; // landing compress (0→1 crouch) — fast
+const DROP_RECOVER_MS = 360; // stand up (1→0 crouch) — slower
 // FLAIL SPEED — multiplier on how fast the arms/legs thrash, INDEPENDENT of fall speed/distance.
 // Scales the flail oscillation frequencies; the fade-in/out envelope still spans the whole fall.
 // Now per-character (drop.flailSpeed); this is the default.
@@ -23,7 +23,7 @@ const DROP_FLAIL_SPEED = 2.5;
 // own speed (close to each other) and starting phase, so the four limbs look random rather than
 // synced. Index 0=L arm, 1=R arm, 2=L leg, 3=R leg.
 const FLAIL_SPEEDS = [1.0, 1.17, 0.88, 1.09]; // per-limb rate multiplier (close but individual)
-const FLAIL_PHASES = [0, 1.9, 3.5, 5.2];       // per-limb starting offset
+const FLAIL_PHASES = [0, 1.9, 3.5, 5.2]; // per-limb starting offset
 
 const smoothstep = (t: number) => t * t * (3 - 2 * t);
 

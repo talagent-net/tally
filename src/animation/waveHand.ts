@@ -8,10 +8,10 @@ import { createCyclicAnimation, type CyclicDirection } from "./cyclic";
 // HAND_WAVE_DEG at the render site.
 
 const NEUTRAL = 0.5;
-const AMPLITUDE = 0.5;              // normalized — full swing both ways around neutral
-const CYCLE_MS = 450;              // matches shakeHead's CYCLE_MS to stay in sync
-const CYCLES = 2.5;                // matches shakeHead's CYCLES
-const DIRECTION: CyclicDirection = -1;   // flip to -1 to wave opposite the head's first turn
+const AMPLITUDE = 0.5; // normalized — full swing both ways around neutral
+const CYCLE_MS = 450; // matches shakeHead's CYCLE_MS to stay in sync
+const CYCLES = 2.5; // matches shakeHead's CYCLES
+const DIRECTION: CyclicDirection = -1; // flip to -1 to wave opposite the head's first turn
 
 export const WAVE_HAND_DURATION_MS = CYCLE_MS * CYCLES;
 

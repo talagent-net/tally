@@ -19,7 +19,7 @@ const smoothstep = (t: number) => t * t * (3 - 2 * t);
 // around chest height — an open palms-up shrug. Tunable.
 const SHRUG_RAISE_PEAK = 0.6;
 // Peak head cock on head.bob (0.5 = level; rolls slightly to one side for the quizzical "I dunno").
-const SHRUG_HEAD_BOB_PEAK = .3;
+const SHRUG_HEAD_BOB_PEAK = 0.3;
 
 // rise base→peak (smoothstep) → hold at peak → settle peak→base (smoothstep). Shared shape so the
 // arms and head move on one synchronized envelope.

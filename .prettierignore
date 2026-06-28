@@ -1,0 +1,4 @@
+dist
+package-lock.json
+# Markdown left unformatted for now — spec docs' fate is undecided and the README is being rewritten.
+*.md

@@ -2,13 +2,24 @@ import type { AnimationFn } from "./engine";
 import { createShakeHeadAnimation, SHAKE_HEAD_DURATION_MS } from "./shakeHead";
 import { createNodHeadAnimation, NOD_HEAD_DURATION_MS } from "./nodHead";
 // Short variants export the same symbol names as their full-length counterparts, so alias on import.
-import { createShakeHeadAnimation as createShakeHeadShortAnimation, SHAKE_HEAD_DURATION_MS as SHAKE_HEAD_SHORT_DURATION_MS } from "./shakeHeadShort";
-import { createNodHeadAnimation as createNodHeadShortAnimation, NOD_HEAD_DURATION_MS as NOD_HEAD_SHORT_DURATION_MS } from "./nodHeadShort";
+import {
+  createShakeHeadAnimation as createShakeHeadShortAnimation,
+  SHAKE_HEAD_DURATION_MS as SHAKE_HEAD_SHORT_DURATION_MS,
+} from "./shakeHeadShort";
+import {
+  createNodHeadAnimation as createNodHeadShortAnimation,
+  NOD_HEAD_DURATION_MS as NOD_HEAD_SHORT_DURATION_MS,
+} from "./nodHeadShort";
 import { createRaiseHandAnimation, RAISE_HAND_DURATION_MS } from "./raiseHand";
 import { createWaveHandAnimation } from "./waveHand";
 import { createGreetHeadBobAnimation } from "./greetHeadBob";
 import { createShrugRaiseAnimation, createShrugHeadBobAnimation, SHRUG_DURATION_MS } from "./shrug";
-import { createHangHeadTiltAnimation, createHangHeadBlinkAnimation, createHangHeadCrouchAnimation, HANG_HEAD_DURATION_MS } from "./hangHead";
+import {
+  createHangHeadTiltAnimation,
+  createHangHeadBlinkAnimation,
+  createHangHeadCrouchAnimation,
+  HANG_HEAD_DURATION_MS,
+} from "./hangHead";
 import { createWalk } from "./walk";
 import type { WalkDirection } from "./walk";
 import { createDrop } from "./drop";

@@ -61,8 +61,17 @@ export function createFollowAnimation(
   };
 
   return {
-    headTurn: (elapsed, dt) => { step(elapsed, dt); return curTurn; },
-    headTilt: (elapsed, dt) => { step(elapsed, dt); return curTilt; },
-    upperTurn: (elapsed, dt) => { step(elapsed, dt); return curUpper; },
+    headTurn: (elapsed, dt) => {
+      step(elapsed, dt);
+      return curTurn;
+    },
+    headTilt: (elapsed, dt) => {
+      step(elapsed, dt);
+      return curTilt;
+    },
+    upperTurn: (elapsed, dt) => {
+      step(elapsed, dt);
+      return curUpper;
+    },
   };
 }

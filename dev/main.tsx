@@ -17,12 +17,43 @@ const logos: Record<string, string> = {
 
 const OUTLINE = "#2a2a2a";
 
+// Eight colorways spanning the hue wheel (seven chromatic + one neutral), ordered AROUND the wheel
+// so the selector reads as a spectrum. Lifted from the Talagent platform. `steel` is the brand blue
+// (the former "default").
 const themes: Record<string, ColorTheme> = {
-  default: {
+  slate: {
+    primary: "#5a5a6a",
+    primaryDark: "#3a3a48",
+    primaryMidDark: "#717185",
+    primaryMid: "#8888a0",
+    outline: OUTLINE,
+  },
+  steel: {
     primary: "#415e74",
     primaryDark: "#2c3f50",
     primaryMidDark: "#56768d",
     primaryMid: "#6b8ea6",
+    outline: OUTLINE,
+  },
+  tide: {
+    primary: "#3a7a78",
+    primaryDark: "#265251",
+    primaryMidDark: "#569693",
+    primaryMid: "#71b0ad",
+    outline: OUTLINE,
+  },
+  forest: {
+    primary: "#4a7351",
+    primaryDark: "#2e4a33",
+    primaryMidDark: "#628f6a",
+    primaryMid: "#7aab82",
+    outline: OUTLINE,
+  },
+  honey: {
+    primary: "#9a7d3e",
+    primaryDark: "#6b5628",
+    primaryMidDark: "#b3955a",
+    primaryMid: "#c9af74",
     outline: OUTLINE,
   },
   ember: {
@@ -32,11 +63,11 @@ const themes: Record<string, ColorTheme> = {
     primaryMid: "#c49a6c",
     outline: OUTLINE,
   },
-  forest: {
-    primary: "#4a7355",
-    primaryDark: "#2e4a36",
-    primaryMidDark: "#628f70",
-    primaryMid: "#7aab8a",
+  coral: {
+    primary: "#9e5a5a",
+    primaryDark: "#6e3838",
+    primaryMidDark: "#b17272",
+    primaryMid: "#c48a8a",
     outline: OUTLINE,
   },
   berry: {
@@ -44,20 +75,6 @@ const themes: Record<string, ColorTheme> = {
     primaryDark: "#453054",
     primaryMidDark: "#856695",
     primaryMid: "#9e7fb0",
-    outline: OUTLINE,
-  },
-  slate: {
-    primary: "#5a5a6a",
-    primaryDark: "#3a3a48",
-    primaryMidDark: "#717185",
-    primaryMid: "#8888a0",
-    outline: OUTLINE,
-  },
-  coral: {
-    primary: "#9e5a5a",
-    primaryDark: "#6e3838",
-    primaryMidDark: "#b17272",
-    primaryMid: "#c48a8a",
     outline: OUTLINE,
   },
 };
@@ -71,45 +88,153 @@ const characters: Record<string, Anatomy> = {
   Stilt: {
     ...avagent,
     global: {
-      ...avagent.global, shadow: { width: 56, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 8 },
+      ...avagent.global,
+      shadow: { width: 56, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 8 },
     },
     body: { ...avagent.body, width: 36, height: 84 },
-    head: { ...avagent.head, width: 56, height: 80, bodyOverlap: 11, roundness: 16, turnDepthRatio: 1.08, tiltDepthRatio: .96, tiltRadiusGrow: 1.5 },
+    head: {
+      ...avagent.head,
+      width: 56,
+      height: 80,
+      bodyOverlap: 11,
+      roundness: 16,
+      turnDepthRatio: 1.08,
+      tiltDepthRatio: 0.96,
+      tiltRadiusGrow: 1.5,
+    },
     eye: {
-      ...avagent.eye, width: 20, height: 20, roundnessRatio: .3,
+      ...avagent.eye,
+      width: 20,
+      height: 20,
+      roundnessRatio: 0.3,
       topRatio: 0.45,
       sideRatio: 0.22,
       pupilInset: 5,
       tiltHeightRatio: 0.4,
       tiltPerspectivePower: 1.5,
-      turnWidthRatio: .24,
-      turnCloserInset: -.1,
-      turnFurtherInset: .75,
+      turnWidthRatio: 0.24,
+      turnCloserInset: -0.1,
+      turnFurtherInset: 0.75,
     },
     ear: { ...avagent.ear, heightRatio: 0.2 },
     antenna: { ...avagent.antenna, height: 28, signalScale: 2 },
-    arm: { ...avagent.arm, upperWidth: 20, lowerWidth: 20, upperHeight: 52, lowerHeight: 46, upperAngle: 15, lowerAngle: -10 },
+    arm: {
+      ...avagent.arm,
+      upperWidth: 20,
+      lowerWidth: 20,
+      upperHeight: 52,
+      lowerHeight: 46,
+      upperAngle: 15,
+      lowerAngle: -10,
+    },
     leg: { ...avagent.leg, legWidth: 20, legHeight: 64, footWidth: 24, footHeight: 20, legAngle: 3, footAngle: -3 },
     // tall + lanky: smaller, slower strides; a reserved upper body (narrow arm swing); long legs
     // that glide further across the ground per walk; a low, gliding bounce but a pronounced lean
     // into the travel direction (the long frame tips forward).
-    gait: { ...avagent.gait, strideDeg: 20, armSwingDeg: 14, bounceHeightRatio: .12, leanDeg: 7, walkMsPerBodyWidth: 480, travelPerBodyWidth: 3.4, walkDropOffset: 2 },
+    gait: {
+      ...avagent.gait,
+      strideDeg: 20,
+      armSwingDeg: 14,
+      bounceHeightRatio: 0.12,
+      leanDeg: 7,
+      walkMsPerBodyWidth: 480,
+      travelPerBodyWidth: 3.4,
+      walkDropOffset: 2,
+    },
     jump: { ...avagent.jump, heightBodyWidths: 6, flailSpeed: 1.0 },
-    drop: { ...avagent.drop, flailSpeed: 1.5 }
+    drop: { ...avagent.drop, flailSpeed: 1.5 },
   },
   // Finalized anatomy (full export). Broad-bodied tall robot: small head with oversized round eyes
   // and a stubby antenna; a slow, bouncy, low-hop gait.
   Scratch: {
     global: { outlineThickness: 6, shadow: { width: 80, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 6 } },
-    body: { width: 74, height: 74, radiusTop: 32, radiusBottom: 24, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.6 }, turnDepthRatio: 0.84, chest: { size: 32, topRatio: 0.25, turnMinRatio: 0.15, crouchMinRatio: 0.6, turnSlideRatio: 0.35, crouchRise: 0.015625, haloOffset: 1, haloBlur: 0 } },
-    head: { width: 72, height: 78, roundness: 20, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.85 }, turnDepthRatio: 1, tiltDepthRatio: 0.92, turnRadiusGrow: 1.1, tiltRadiusGrow: 1.25, shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 }, bodyOverlap: 17 },
-    antenna: { width: 12, height: 32, radius: 4, restLean: -25, pivot: { xFrac: 0.5, yFrac: 1 }, baseInset: 10, rightRatio: 0.15, tiltHeightRatio: 0.5, signalScale: 2.5 },
-    eye: { width: 42, height: 42, roundnessRatio: 0.2, pivot: { xFrac: 0.5, yFrac: 0.5 }, topRatio: 0.35, sideRatio: -0.04, turnCloserInset: -0.22333333333333333, turnFurtherInset: 0.6566666666666666, pupilInset: 0, turnWidthRatio: 0.6, tiltHeightRatio: 0.8, tiltPerspectivePower: 3 },
+    body: {
+      width: 74,
+      height: 74,
+      radiusTop: 32,
+      radiusBottom: 24,
+      restRotation: 0,
+      pivot: { xFrac: 0.5, yFrac: 0.6 },
+      turnDepthRatio: 0.84,
+      chest: {
+        size: 32,
+        topRatio: 0.25,
+        turnMinRatio: 0.15,
+        crouchMinRatio: 0.6,
+        turnSlideRatio: 0.35,
+        crouchRise: 0.015625,
+        haloOffset: 1,
+        haloBlur: 0,
+      },
+    },
+    head: {
+      width: 72,
+      height: 78,
+      roundness: 20,
+      restRotation: 0,
+      pivot: { xFrac: 0.5, yFrac: 0.85 },
+      turnDepthRatio: 1,
+      tiltDepthRatio: 0.92,
+      turnRadiusGrow: 1.1,
+      tiltRadiusGrow: 1.25,
+      shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 },
+      bodyOverlap: 17,
+    },
+    antenna: {
+      width: 12,
+      height: 32,
+      radius: 4,
+      restLean: -25,
+      pivot: { xFrac: 0.5, yFrac: 1 },
+      baseInset: 10,
+      rightRatio: 0.15,
+      tiltHeightRatio: 0.5,
+      signalScale: 2.5,
+    },
+    eye: {
+      width: 42,
+      height: 42,
+      roundnessRatio: 0.2,
+      pivot: { xFrac: 0.5, yFrac: 0.5 },
+      topRatio: 0.35,
+      sideRatio: -0.04,
+      turnCloserInset: -0.22333333333333333,
+      turnFurtherInset: 0.6566666666666666,
+      pupilInset: 0,
+      turnWidthRatio: 0.6,
+      tiltHeightRatio: 0.8,
+      tiltPerspectivePower: 3,
+    },
     ear: { topRatio: 0.4, heightRatio: 0.44, roundnessRatio: 0.4 },
-    arm: { upperWidth: 28, upperHeight: 54, lowerWidth: 28, lowerHeight: 44, upperAngle: 25, lowerAngle: -15, shoulderRatio: 0.1 },
-    leg: { legWidth: 28, legHeight: 54, footWidth: 36, footHeight: 28, legAngle: 4, footAngle: -4, hipInsetRatio: 0.13, hipTuckRatio: 0.40625 },
+    arm: {
+      upperWidth: 28,
+      upperHeight: 54,
+      lowerWidth: 28,
+      lowerHeight: 44,
+      upperAngle: 25,
+      lowerAngle: -15,
+      shoulderRatio: 0.1,
+    },
+    leg: {
+      legWidth: 28,
+      legHeight: 54,
+      footWidth: 36,
+      footHeight: 28,
+      legAngle: 4,
+      footAngle: -4,
+      hipInsetRatio: 0.13,
+      hipTuckRatio: 0.40625,
+    },
     speech: { gap: 19, maxWidth: 192 },
-    gait: { strideDeg: 32, armSwingDeg: 22, bounceHeightRatio: 0.2, leanDeg: 4, walkDropOffset: 2, walkMsPerBodyWidth: 440, travelPerBodyWidth: 1.6 },
+    gait: {
+      strideDeg: 32,
+      armSwingDeg: 22,
+      bounceHeightRatio: 0.2,
+      leanDeg: 4,
+      walkDropOffset: 2,
+      walkMsPerBodyWidth: 440,
+      travelPerBodyWidth: 1.6,
+    },
     jump: { heightBodyWidths: 2, flailSpeed: 0.6 },
     drop: { flailSpeed: 2.5 },
   },
@@ -117,15 +242,93 @@ const characters: Record<string, Anatomy> = {
   // swing, a soft low shadow, a slim body and a quick glide.
   Float: {
     global: { outlineThickness: 6, shadow: { width: 56, height: 12, blur: 3, opacity: 0.24, fadeOutBodyWidths: 4 } },
-    body: { width: 42, height: 72, radiusTop: 12, radiusBottom: 21, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.6 }, turnDepthRatio: 0.84, chest: { size: 32, topRatio: 0.25, turnMinRatio: 0.15, crouchMinRatio: 0.6, turnSlideRatio: 0.3076923076923077, crouchRise: 0.015625, haloOffset: 1, haloBlur: 0 } },
-    head: { width: 96, height: 90, roundness: 32, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.85 }, turnDepthRatio: 0.88, tiltDepthRatio: 0.92, turnRadiusGrow: 1.1, tiltRadiusGrow: 1.25, shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 }, bodyOverlap: 17 },
-    antenna: { width: 7, height: 38, radius: 2, restLean: -5, pivot: { xFrac: 0.5, yFrac: 1 }, baseInset: 10, rightRatio: 0.15, tiltHeightRatio: 0.5, signalScale: 1 },
-    eye: { width: 41, height: 17, roundnessRatio: 0.5, pivot: { xFrac: 0.44, yFrac: 0.5 }, topRatio: 0.44, sideRatio: 0.16, turnCloserInset: 0.12, turnFurtherInset: 0.6, pupilInset: 5, turnWidthRatio: 0.44, tiltHeightRatio: 0.7, tiltPerspectivePower: 3 },
+    body: {
+      width: 42,
+      height: 72,
+      radiusTop: 12,
+      radiusBottom: 21,
+      restRotation: 0,
+      pivot: { xFrac: 0.5, yFrac: 0.6 },
+      turnDepthRatio: 0.84,
+      chest: {
+        size: 32,
+        topRatio: 0.25,
+        turnMinRatio: 0.15,
+        crouchMinRatio: 0.6,
+        turnSlideRatio: 0.3076923076923077,
+        crouchRise: 0.015625,
+        haloOffset: 1,
+        haloBlur: 0,
+      },
+    },
+    head: {
+      width: 96,
+      height: 90,
+      roundness: 32,
+      restRotation: 0,
+      pivot: { xFrac: 0.5, yFrac: 0.85 },
+      turnDepthRatio: 0.88,
+      tiltDepthRatio: 0.92,
+      turnRadiusGrow: 1.1,
+      tiltRadiusGrow: 1.25,
+      shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 },
+      bodyOverlap: 17,
+    },
+    antenna: {
+      width: 7,
+      height: 38,
+      radius: 2,
+      restLean: -5,
+      pivot: { xFrac: 0.5, yFrac: 1 },
+      baseInset: 10,
+      rightRatio: 0.15,
+      tiltHeightRatio: 0.5,
+      signalScale: 1,
+    },
+    eye: {
+      width: 41,
+      height: 17,
+      roundnessRatio: 0.5,
+      pivot: { xFrac: 0.44, yFrac: 0.5 },
+      topRatio: 0.44,
+      sideRatio: 0.16,
+      turnCloserInset: 0.12,
+      turnFurtherInset: 0.6,
+      pupilInset: 5,
+      turnWidthRatio: 0.44,
+      tiltHeightRatio: 0.7,
+      tiltPerspectivePower: 3,
+    },
     ear: { topRatio: 0.45, heightRatio: 0.3, roundnessRatio: 0.25 },
-    arm: { upperWidth: 22, upperHeight: 48, lowerWidth: 20, lowerHeight: 40, upperAngle: 15, lowerAngle: -5, shoulderRatio: 0.05 },
-    leg: { legWidth: 0, legHeight: 44, footWidth: 0, footHeight: 24, legAngle: 9, footAngle: -9, hipInsetRatio: 0, hipTuckRatio: 0.40625 },
+    arm: {
+      upperWidth: 22,
+      upperHeight: 48,
+      lowerWidth: 20,
+      lowerHeight: 40,
+      upperAngle: 15,
+      lowerAngle: -5,
+      shoulderRatio: 0.05,
+    },
+    leg: {
+      legWidth: 0,
+      legHeight: 44,
+      footWidth: 0,
+      footHeight: 24,
+      legAngle: 9,
+      footAngle: -9,
+      hipInsetRatio: 0,
+      hipTuckRatio: 0.40625,
+    },
     speech: { gap: 19, maxWidth: 192 },
-    gait: { strideDeg: 40, armSwingDeg: 0, bounceHeightRatio: 0, leanDeg: 7, walkDropOffset: 0, walkMsPerBodyWidth: 160, travelPerBodyWidth: 2.2 },
+    gait: {
+      strideDeg: 40,
+      armSwingDeg: 0,
+      bounceHeightRatio: 0,
+      leanDeg: 7,
+      walkDropOffset: 0,
+      walkMsPerBodyWidth: 160,
+      travelPerBodyWidth: 2.2,
+    },
     jump: { heightBodyWidths: 6, flailSpeed: 0.1 },
     drop: { flailSpeed: 2.5 },
   },
@@ -133,15 +336,93 @@ const characters: Record<string, Anatomy> = {
   // legs, fast skittery glide.
   Glitch: {
     global: { outlineThickness: 6, shadow: { width: 56, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 8 } },
-    body: { width: 32, height: 72, radiusTop: 24, radiusBottom: 4, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.6 }, turnDepthRatio: 0.84, chest: { size: 32, topRatio: 0.25, turnMinRatio: 0.15, crouchMinRatio: 0.6, turnSlideRatio: 0.3076923076923077, crouchRise: 0.015625, haloOffset: 1, haloBlur: 0 } },
-    head: { width: 90, height: 48, roundness: 24, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.85 }, turnDepthRatio: 0.64, tiltDepthRatio: 0.96, turnRadiusGrow: 1.4, tiltRadiusGrow: 1.5, shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 }, bodyOverlap: 11 },
-    antenna: { width: 8, height: 36, radius: 3, restLean: -15, pivot: { xFrac: 0.5, yFrac: 1 }, baseInset: 10, rightRatio: 0.15, tiltHeightRatio: 0.5, signalScale: 2 },
-    eye: { width: 36, height: 14, roundnessRatio: 0.1, pivot: { xFrac: 0.5, yFrac: 0.5 }, topRatio: 0.45, sideRatio: 0.12, turnCloserInset: 0.1, turnFurtherInset: 0.6, pupilInset: 5, turnWidthRatio: 0.24, tiltHeightRatio: 0.4, tiltPerspectivePower: 1.5 },
+    body: {
+      width: 32,
+      height: 72,
+      radiusTop: 24,
+      radiusBottom: 4,
+      restRotation: 0,
+      pivot: { xFrac: 0.5, yFrac: 0.6 },
+      turnDepthRatio: 0.84,
+      chest: {
+        size: 32,
+        topRatio: 0.25,
+        turnMinRatio: 0.15,
+        crouchMinRatio: 0.6,
+        turnSlideRatio: 0.3076923076923077,
+        crouchRise: 0.015625,
+        haloOffset: 1,
+        haloBlur: 0,
+      },
+    },
+    head: {
+      width: 90,
+      height: 48,
+      roundness: 24,
+      restRotation: 0,
+      pivot: { xFrac: 0.5, yFrac: 0.85 },
+      turnDepthRatio: 0.64,
+      tiltDepthRatio: 0.96,
+      turnRadiusGrow: 1.4,
+      tiltRadiusGrow: 1.5,
+      shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 },
+      bodyOverlap: 11,
+    },
+    antenna: {
+      width: 8,
+      height: 36,
+      radius: 3,
+      restLean: -15,
+      pivot: { xFrac: 0.5, yFrac: 1 },
+      baseInset: 10,
+      rightRatio: 0.15,
+      tiltHeightRatio: 0.5,
+      signalScale: 2,
+    },
+    eye: {
+      width: 36,
+      height: 14,
+      roundnessRatio: 0.1,
+      pivot: { xFrac: 0.5, yFrac: 0.5 },
+      topRatio: 0.45,
+      sideRatio: 0.12,
+      turnCloserInset: 0.1,
+      turnFurtherInset: 0.6,
+      pupilInset: 5,
+      turnWidthRatio: 0.24,
+      tiltHeightRatio: 0.4,
+      tiltPerspectivePower: 1.5,
+    },
     ear: { topRatio: 0.42, heightRatio: 0.4, roundnessRatio: 0.3 },
-    arm: { upperWidth: 18, upperHeight: 54, lowerWidth: 18, lowerHeight: 44, upperAngle: 15, lowerAngle: -10, shoulderRatio: 0.05 },
-    leg: { legWidth: 18, legHeight: 64, footWidth: 24, footHeight: 16, legAngle: 3, footAngle: -3, hipInsetRatio: 0.1, hipTuckRatio: 0.40625 },
+    arm: {
+      upperWidth: 18,
+      upperHeight: 54,
+      lowerWidth: 18,
+      lowerHeight: 44,
+      upperAngle: 15,
+      lowerAngle: -10,
+      shoulderRatio: 0.05,
+    },
+    leg: {
+      legWidth: 18,
+      legHeight: 64,
+      footWidth: 24,
+      footHeight: 16,
+      legAngle: 3,
+      footAngle: -3,
+      hipInsetRatio: 0.1,
+      hipTuckRatio: 0.40625,
+    },
     speech: { gap: 19, maxWidth: 192 },
-    gait: { strideDeg: 30, armSwingDeg: 24, bounceHeightRatio: 0.2, leanDeg: 7, walkDropOffset: 2, walkMsPerBodyWidth: 480, travelPerBodyWidth: 3.9 },
+    gait: {
+      strideDeg: 30,
+      armSwingDeg: 24,
+      bounceHeightRatio: 0.2,
+      leanDeg: 7,
+      walkDropOffset: 2,
+      walkMsPerBodyWidth: 480,
+      travelPerBodyWidth: 3.9,
+    },
     jump: { heightBodyWidths: 4.5, flailSpeed: 0.4 },
     drop: { flailSpeed: 1.5 },
   },
@@ -149,21 +430,99 @@ const characters: Record<string, Anatomy> = {
   // slow, bouncy, low-hop gait.
   Loop: {
     global: { outlineThickness: 6, shadow: { width: 80, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 6 } },
-    body: { width: 40, height: 55, radiusTop: 12, radiusBottom: 12, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.6 }, turnDepthRatio: 0.84, chest: { size: 32, topRatio: 0.25, turnMinRatio: 0.15, crouchMinRatio: 0.6, turnSlideRatio: 0.35, crouchRise: 0.015625, haloOffset: 1, haloBlur: 0 } },
-    head: { width: 96, height: 103, roundness: 12, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.85 }, turnDepthRatio: 1, tiltDepthRatio: 0.92, turnRadiusGrow: 1.4, tiltRadiusGrow: 1.25, shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 }, bodyOverlap: 17 },
-    antenna: { width: 8, height: 44, radius: 4, restLean: -25, pivot: { xFrac: 0.5, yFrac: 1 }, baseInset: 10, rightRatio: 0.15, tiltHeightRatio: 0.5, signalScale: 2.5 },
-    eye: { width: 48, height: 44, roundnessRatio: 0.2, pivot: { xFrac: 0.5, yFrac: 0.5 }, topRatio: 0.45, sideRatio: 0.04, turnCloserInset: -0.22333333333333333, turnFurtherInset: 0.6566666666666666, pupilInset: 18, turnWidthRatio: 0.6, tiltHeightRatio: 0.8, tiltPerspectivePower: 3 },
+    body: {
+      width: 40,
+      height: 55,
+      radiusTop: 12,
+      radiusBottom: 12,
+      restRotation: 0,
+      pivot: { xFrac: 0.5, yFrac: 0.6 },
+      turnDepthRatio: 0.84,
+      chest: {
+        size: 32,
+        topRatio: 0.25,
+        turnMinRatio: 0.15,
+        crouchMinRatio: 0.6,
+        turnSlideRatio: 0.35,
+        crouchRise: 0.015625,
+        haloOffset: 1,
+        haloBlur: 0,
+      },
+    },
+    head: {
+      width: 96,
+      height: 103,
+      roundness: 12,
+      restRotation: 0,
+      pivot: { xFrac: 0.5, yFrac: 0.85 },
+      turnDepthRatio: 1,
+      tiltDepthRatio: 0.92,
+      turnRadiusGrow: 1.4,
+      tiltRadiusGrow: 1.25,
+      shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 },
+      bodyOverlap: 17,
+    },
+    antenna: {
+      width: 8,
+      height: 44,
+      radius: 4,
+      restLean: -25,
+      pivot: { xFrac: 0.5, yFrac: 1 },
+      baseInset: 10,
+      rightRatio: 0.15,
+      tiltHeightRatio: 0.5,
+      signalScale: 2.5,
+    },
+    eye: {
+      width: 48,
+      height: 44,
+      roundnessRatio: 0.2,
+      pivot: { xFrac: 0.5, yFrac: 0.5 },
+      topRatio: 0.45,
+      sideRatio: 0.04,
+      turnCloserInset: -0.22333333333333333,
+      turnFurtherInset: 0.6566666666666666,
+      pupilInset: 18,
+      turnWidthRatio: 0.6,
+      tiltHeightRatio: 0.8,
+      tiltPerspectivePower: 3,
+    },
     ear: { topRatio: 0.4, heightRatio: 0.34, roundnessRatio: 0.4 },
-    arm: { upperWidth: 20, upperHeight: 54, lowerWidth: 20, lowerHeight: 44, upperAngle: 10, lowerAngle: -5, shoulderRatio: 0.1 },
-    leg: { legWidth: 20, legHeight: 64, footWidth: 28, footHeight: 22, legAngle: 2, footAngle: -2, hipInsetRatio: -0.01, hipTuckRatio: 0.40625 },
+    arm: {
+      upperWidth: 20,
+      upperHeight: 54,
+      lowerWidth: 20,
+      lowerHeight: 44,
+      upperAngle: 10,
+      lowerAngle: -5,
+      shoulderRatio: 0.1,
+    },
+    leg: {
+      legWidth: 20,
+      legHeight: 64,
+      footWidth: 28,
+      footHeight: 22,
+      legAngle: 2,
+      footAngle: -2,
+      hipInsetRatio: -0.01,
+      hipTuckRatio: 0.40625,
+    },
     speech: { gap: 19, maxWidth: 192 },
-    gait: { strideDeg: 32, armSwingDeg: 22, bounceHeightRatio: 0.2, leanDeg: 4, walkDropOffset: 2, walkMsPerBodyWidth: 360, travelPerBodyWidth: 2.6 },
+    gait: {
+      strideDeg: 32,
+      armSwingDeg: 22,
+      bounceHeightRatio: 0.2,
+      leanDeg: 4,
+      walkDropOffset: 2,
+      walkMsPerBodyWidth: 360,
+      travelPerBodyWidth: 2.6,
+    },
     jump: { heightBodyWidths: 4, flailSpeed: 1.6 },
     drop: { flailSpeed: 2.5 },
   },
 };
 
-const scales = [.36, 0.5, 1, 1.5, 2, 2.5, 3, 3.5];
+const scales = [0.36, 0.5, 1, 1.5, 2, 2.5, 3, 3.5];
 const modes: Mode[] = ["hangout", "track", "connecting", "frozen", "snooze", "debug"];
 // Each debug capability with its rest value — toggling a capability on starts it at rest (no
 // visual jump) so you can then scrub from there. Multiple can be engaged at once.
@@ -202,7 +561,15 @@ const debugGroups: Record<string, { key: string; rest: number; sub: string }[]> 
   return groups;
 })();
 // Gesture actions fire with a fixed spec; walk takes direction + distance (body-widths).
-const gestures: ActionSpec[] = [{ name: "disagree" }, { name: "agree" }, { name: "disagreeShort" }, { name: "agreeShort" }, { name: "greet" }, { name: "shrug" }, { name: "hangHead" }];
+const gestures: ActionSpec[] = [
+  { name: "disagree" },
+  { name: "agree" },
+  { name: "disagreeShort" },
+  { name: "agreeShort" },
+  { name: "greet" },
+  { name: "shrug" },
+  { name: "hangHead" },
+];
 
 const GROUND_Y = 480; // px from the demo pane's top to the figure's anchor — i.e. the ground line.
 const DEFAULT_SPEECH = "Hi, I'm Avagent. Agent and avatar built by Talagent.";
@@ -211,7 +578,14 @@ const DEFAULT_SPEECH = "Hi, I'm Avagent. Agent and avatar built by Talagent.";
 // Talagent agent-head mark (§10) — recolours via currentColor; eyes are true cut-outs.
 function Mark({ size = 24 }: { size?: number }) {
   return (
-    <svg viewBox="160 60 330 295" height={size} fill="currentColor" role="img" aria-label="talagent" style={{ display: "block", color: "var(--color-brand)" }}>
+    <svg
+      viewBox="160 60 330 295"
+      height={size}
+      fill="currentColor"
+      role="img"
+      aria-label="talagent"
+      style={{ display: "block", color: "var(--color-brand)" }}
+    >
       <path d="M 190 105 C 190 81.964 214.531 60 240 60 L 410 60 C 434.514 60 460 81.413 460 105 L 460 150 C 480.847 150 490 150 490 180 L 490 225 C 490 255 480.397 255 460 255 C 460 276.857 434.207 300 410 300 L 300 300 L 240 355 L 240 300 C 215.606 300 190 277.768 190 255 C 167.78 255 160 255 160 225 L 160 180 C 160 150 169.986 150 190 150 L 190 105 Z M 260 255 C 280 255 280 235.444 280 215 C 280 197.864 280 180 260 180 C 240 180 240 198.714 240 215 C 240 236.074 240 255 260 255 Z M 390 255 C 410 255 410 239.847 410 215 C 410 197.588 410 180 390 180 C 370 180 370 197.835 370 215 C 370 239.488 370 255 390 255 Z" />
     </svg>
   );
@@ -254,16 +628,30 @@ function SelectField({
       <span className="field-label">{label}</span>
       <select className="tselect" value={value} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
         ))}
       </select>
     </label>
   );
 }
 
-function Toggle({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+function Toggle({
+  label,
+  checked,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", opacity: disabled ? 0.45 : 1 }}>
+    <div
+      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", opacity: disabled ? 0.45 : 1 }}
+    >
       <span style={{ fontSize: 13, color: "var(--color-ink)" }}>{label}</span>
       <button
         type="button"
@@ -299,10 +687,25 @@ function Slider({
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-        <span className="field-label" style={{ margin: 0 }}>{label}</span>
-        <span className="mono" style={{ fontSize: 12, color: "var(--color-ink-muted)", fontVariantNumeric: "tabular-nums" }}>{format(value)}</span>
+        <span className="field-label" style={{ margin: 0 }}>
+          {label}
+        </span>
+        <span
+          className="mono"
+          style={{ fontSize: 12, color: "var(--color-ink-muted)", fontVariantNumeric: "tabular-nums" }}
+        >
+          {format(value)}
+        </span>
       </div>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ width: "100%" }} />
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        style={{ width: "100%" }}
+      />
     </div>
   );
 }
@@ -349,8 +752,12 @@ function AnatomyEditor({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <span className="section-label">Anatomy</span>
         <div style={{ display: "flex", gap: 8 }}>
-          <Btn variant="ghost" onClick={onReset}>Reset</Btn>
-          <Btn variant="accent" onClick={onExport} style={{ minWidth: 78 }}>{copied ? "Copied!" : "Export"}</Btn>
+          <Btn variant="ghost" onClick={onReset}>
+            Reset
+          </Btn>
+          <Btn variant="accent" onClick={onExport} style={{ minWidth: 78 }}>
+            {copied ? "Copied!" : "Export"}
+          </Btn>
         </div>
       </div>
       {Object.entries(anatomy).map(([part, partObj]) => (
@@ -362,7 +769,9 @@ function AnatomyEditor({
             const step = Math.abs(value) < 2 ? 0.01 : 1; // ratios/angles scrub finely; px in whole steps
             return (
               <label key={k} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                <span className="mono" style={{ fontSize: 12, color: "var(--color-ink-muted)" }}>{path.join(".")}</span>
+                <span className="mono" style={{ fontSize: 12, color: "var(--color-ink-muted)" }}>
+                  {path.join(".")}
+                </span>
                 <input
                   className="tinput-sm"
                   type="number"
@@ -398,24 +807,38 @@ function BBoxOverlay({
   scale: number;
   anatomy: Anatomy;
 }) {
-  const [dom, setDom] = useState<{ left: number; top: number; width: number; height: number; feetY: number } | null>(null);
+  const [dom, setDom] = useState<{ left: number; top: number; width: number; height: number; feetY: number } | null>(
+    null,
+  );
   useEffect(() => {
     let raf = 0;
     const tick = () => {
       const wrap = wrapRef.current;
       if (wrap) {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, feetY = -Infinity;
+        let minX = Infinity,
+          minY = Infinity,
+          maxX = -Infinity,
+          maxY = -Infinity,
+          feetY = -Infinity;
         for (const el of wrap.querySelectorAll<HTMLElement>("*")) {
           const r = el.getBoundingClientRect();
           if (r.width === 0 && r.height === 0) continue;
-          minX = Math.min(minX, r.left); minY = Math.min(minY, r.top);
-          maxX = Math.max(maxX, r.right); maxY = Math.max(maxY, r.bottom);
+          minX = Math.min(minX, r.left);
+          minY = Math.min(minY, r.top);
+          maxX = Math.max(maxX, r.right);
+          maxY = Math.max(maxY, r.bottom);
         }
         for (const el of wrap.querySelectorAll<HTMLElement>("[data-avagent-foot]")) {
           feetY = Math.max(feetY, el.getBoundingClientRect().bottom);
         }
         if (Number.isFinite(minX)) {
-          setDom({ left: minX, top: minY, width: maxX - minX, height: maxY - minY, feetY: Number.isFinite(feetY) ? feetY : maxY });
+          setDom({
+            left: minX,
+            top: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+            feetY: Number.isFinite(feetY) ? feetY : maxY,
+          });
         }
       }
       raf = requestAnimationFrame(tick);
@@ -431,12 +854,53 @@ function BBoxOverlay({
   return (
     <>
       {/* live DOM union box (incl. shadow) */}
-      <div style={{ position: "fixed", left: dom.left, top: dom.top, width: dom.width, height: dom.height, border: "1px dashed #d11", pointerEvents: "none", zIndex: 1000 }} />
+      <div
+        style={{
+          position: "fixed",
+          left: dom.left,
+          top: dom.top,
+          width: dom.width,
+          height: dom.height,
+          border: "1px dashed #d11",
+          pointerEvents: "none",
+          zIndex: 1000,
+        }}
+      />
       {/* analytical measureFigure box (figure silhouette, feet-anchored) */}
-      <div style={{ position: "fixed", left: aLeft, top: dom.feetY - m.height, width: m.width, height: m.height, border: "1px solid #06c", pointerEvents: "none", zIndex: 1000 }} />
-      <div style={{ position: "fixed", left: 12, bottom: 12, zIndex: 1001, background: "rgba(20,20,20,.9)", color: "#fff", font: "12px ui-monospace, monospace", padding: "8px 10px", borderRadius: 6, lineHeight: 1.5, pointerEvents: "none" }}>
-        <div><span style={{ color: "#f66" }}>▭ DOM union</span> (incl. shadow): {r1(dom.width)} × {r1(dom.height)} @1.0</div>
-        <div><span style={{ color: "#6af" }}>▭ measureFigure</span>: figure {r1(m.width)} × {r1(m.height)} · withShadow {r1(m.withShadow.width)} × {r1(m.withShadow.height)}</div>
+      <div
+        style={{
+          position: "fixed",
+          left: aLeft,
+          top: dom.feetY - m.height,
+          width: m.width,
+          height: m.height,
+          border: "1px solid #06c",
+          pointerEvents: "none",
+          zIndex: 1000,
+        }}
+      />
+      <div
+        style={{
+          position: "fixed",
+          left: 12,
+          bottom: 12,
+          zIndex: 1001,
+          background: "rgba(20,20,20,.9)",
+          color: "#fff",
+          font: "12px ui-monospace, monospace",
+          padding: "8px 10px",
+          borderRadius: 6,
+          lineHeight: 1.5,
+          pointerEvents: "none",
+        }}
+      >
+        <div>
+          <span style={{ color: "#f66" }}>▭ DOM union</span> (incl. shadow): {r1(dom.width)} × {r1(dom.height)} @1.0
+        </div>
+        <div>
+          <span style={{ color: "#6af" }}>▭ measureFigure</span>: figure {r1(m.width)} × {r1(m.height)} · withShadow{" "}
+          {r1(m.withShadow.width)} × {r1(m.withShadow.height)}
+        </div>
         <div style={{ color: "#aaa" }}>scale {scale} · DOM excludes blur; rest-pose match w/ frozen mode</div>
       </div>
     </>
@@ -482,8 +946,10 @@ function loadSaved(): Partial<SavedState> {
 
 function App() {
   const saved = useMemo(loadSaved, []);
-  const [themeName, setThemeName] = useState(saved.themeName && saved.themeName in themes ? saved.themeName : "default");
-  const [characterName, setCharacterName] = useState(saved.characterName && saved.characterName in characters ? saved.characterName : "Avagent");
+  const [themeName, setThemeName] = useState(saved.themeName && saved.themeName in themes ? saved.themeName : "steel");
+  const [characterName, setCharacterName] = useState(
+    saved.characterName && saved.characterName in characters ? saved.characterName : "Avagent",
+  );
   const [scale, setScale] = useState(typeof saved.scale === "number" ? saved.scale : 1);
   const [showAnchor, setShowAnchor] = useState(false); // debug overlay — not persisted
   const [groundShadow, setGroundShadow] = useState(saved.groundShadow ?? false);
@@ -491,12 +957,18 @@ function App() {
   const [mode, setMode] = useState<Mode>(saved.mode && modes.includes(saved.mode) ? saved.mode : "hangout");
   const [view, setView] = useState<"full" | "head">(saved.view === "head" ? "head" : "full");
   const [overrides, setOverrides] = useState<Record<string, number>>({}); // debug — not persisted
-  const [logoName, setLogoName] = useState<string>(saved.logoName && (saved.logoName === "none" || saved.logoName in logos) ? saved.logoName : "openclaw");
+  const [logoName, setLogoName] = useState<string>(
+    saved.logoName && (saved.logoName === "none" || saved.logoName in logos) ? saved.logoName : "openclaw",
+  );
   const [action, setAction] = useState<ActionSpec | null>(null);
   const [walkDistance, setWalkDistance] = useState(typeof saved.walkDistance === "number" ? saved.walkDistance : 2); // body-widths per walk press
   const [speech, setSpeech] = useState<SpeechSpec | null>(null);
-  const [speechText, setSpeechText] = useState(typeof saved.speechText === "string" ? saved.speechText : DEFAULT_SPEECH);
-  const [speechSide, setSpeechSide] = useState<SpeechSide>(saved.speechSide === "left" || saved.speechSide === "right" ? saved.speechSide : "auto");
+  const [speechText, setSpeechText] = useState(
+    typeof saved.speechText === "string" ? saved.speechText : DEFAULT_SPEECH,
+  );
+  const [speechSide, setSpeechSide] = useState<SpeechSide>(
+    saved.speechSide === "left" || saved.speechSide === "right" ? saved.speechSide : "auto",
+  );
   const [editMode, setEditMode] = useState(false);
   const [draft, setDraft] = useState<Anatomy>(avagent);
   const [copied, setCopied] = useState(false);
@@ -533,7 +1005,6 @@ function App() {
   useEffect(() => {
     const t = setTimeout(() => fireAction({ name: "drop", distance: 6 }), 250);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist the curated settings subset whenever it changes.
@@ -541,12 +1012,40 @@ function App() {
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ characterName, themeName, scale, logoName, mode, view, groundShadow, showGround, swapped, walkDistance, speechText, speechSide, tab }),
+        JSON.stringify({
+          characterName,
+          themeName,
+          scale,
+          logoName,
+          mode,
+          view,
+          groundShadow,
+          showGround,
+          swapped,
+          walkDistance,
+          speechText,
+          speechSide,
+          tab,
+        }),
       );
     } catch {
       /* ignore quota / unavailable storage */
     }
-  }, [characterName, themeName, scale, logoName, mode, view, groundShadow, showGround, swapped, walkDistance, speechText, speechSide, tab]);
+  }, [
+    characterName,
+    themeName,
+    scale,
+    logoName,
+    mode,
+    view,
+    groundShadow,
+    showGround,
+    swapped,
+    walkDistance,
+    speechText,
+    speechSide,
+    tab,
+  ]);
 
   // Cmd/Ctrl+Shift+B toggles the bounding-box overlay (measureFigure vs live DOM).
   const [showBBox, setShowBBox] = useState(false);
@@ -571,8 +1070,7 @@ function App() {
       else next[key] = rest;
       return next;
     });
-  const setOverrideValue = (key: string, value: number) =>
-    setOverrides((o) => ({ ...o, [key]: value }));
+  const setOverrideValue = (key: string, value: number) => setOverrides((o) => ({ ...o, [key]: value }));
 
   // Fire an action by toggling null → spec. The Avagent component dedupes against its last
   // value, so the null bounce is needed to re-fire an identical action.
@@ -597,7 +1095,7 @@ function App() {
       /* ignore */
     }
     setCharacterName("Avagent");
-    setThemeName("default");
+    setThemeName("steel");
     setScale(1);
     setLogoName("openclaw");
     setMode("hangout");
@@ -618,10 +1116,31 @@ function App() {
   };
 
   const stage = (
-    <div style={{ flex: 1, position: "relative", display: "flex", justifyContent: "center", alignItems: view === "head" ? "center" : "flex-start", paddingTop: view === "head" ? 0 : GROUND_Y, overflow: "visible" }}>
+    <div
+      style={{
+        flex: 1,
+        position: "relative",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: view === "head" ? "center" : "flex-start",
+        paddingTop: view === "head" ? 0 : GROUND_Y,
+        overflow: "visible",
+      }}
+    >
       {/* Ground plane at the figure's anchor (feet/ground line) — full-body view, when enabled. */}
       {view !== "head" && showGround && (
-        <div style={{ position: "absolute", left: 0, right: 0, top: GROUND_Y, bottom: 0, background: "var(--color-surface-2)", borderTop: "1px solid var(--color-line-2)", pointerEvents: "none" }} />
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: GROUND_Y,
+            bottom: 0,
+            background: "var(--color-surface-2)",
+            borderTop: "1px solid var(--color-line-2)",
+            pointerEvents: "none",
+          }}
+        />
       )}
       <div ref={figureWrapRef} style={{ position: "relative" }}>
         <Avagent
@@ -647,28 +1166,71 @@ function App() {
       <div style={{ padding: 14, paddingBottom: 0 }}>
         <div className="seg">
           {TABS.map((t) => (
-            <button key={t.id} type="button" className="seg-tab" data-active={tab === t.id} onClick={() => setTab(t.id)}>{t.label}</button>
+            <button
+              key={t.id}
+              type="button"
+              className="seg-tab"
+              data-active={tab === t.id}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
           ))}
         </div>
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 18 }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          padding: 18,
+          display: "flex",
+          flexDirection: "column",
+          gap: 18,
+        }}
+      >
         {tab === "general" && (
           <>
             <Section title="Character & Look">
-              <SelectField label="Character" value={characterName} onChange={changeCharacter} options={Object.keys(characters).map((n) => ({ value: n, label: n }))} />
+              <SelectField
+                label="Character"
+                value={characterName}
+                onChange={changeCharacter}
+                options={Object.keys(characters).map((n) => ({ value: n, label: n }))}
+              />
               <div style={{ display: "flex", gap: 12 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <SelectField label="Theme" value={themeName} onChange={setThemeName} options={Object.keys(themes).map((n) => ({ value: n, label: n }))} />
+                  <SelectField
+                    label="Colorway"
+                    value={themeName}
+                    onChange={setThemeName}
+                    options={Object.keys(themes).map((n) => ({ value: n, label: n }))}
+                  />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <SelectField label="Scale" value={String(scale)} onChange={(v) => setScale(Number(v))} options={scales.map((s) => ({ value: String(s), label: `${s}×` }))} />
+                  <SelectField
+                    label="Scale"
+                    value={String(scale)}
+                    onChange={(v) => setScale(Number(v))}
+                    options={scales.map((s) => ({ value: String(s), label: `${s}×` }))}
+                  />
                 </div>
               </div>
-              <SelectField label="Logo" value={logoName} onChange={setLogoName} options={[{ value: "none", label: "none" }, ...Object.keys(logos).map((n) => ({ value: n, label: n }))]} />
+              <SelectField
+                label="Logo"
+                value={logoName}
+                onChange={setLogoName}
+                options={[{ value: "none", label: "none" }, ...Object.keys(logos).map((n) => ({ value: n, label: n }))]}
+              />
             </Section>
             <Divider />
             <Section title="Stage">
-              <SelectField label="Mode" value={mode} onChange={(v) => setMode(v as Mode)} options={modes.map((m) => ({ value: m, label: m }))} />
+              <SelectField
+                label="Mode"
+                value={mode}
+                onChange={(v) => setMode(v as Mode)}
+                options={modes.map((m) => ({ value: m, label: m }))}
+              />
               <Toggle label="Head only" checked={view === "head"} onChange={(on) => setView(on ? "head" : "full")} />
               <Toggle label="Ground line" checked={showGround} onChange={setShowGround} disabled={view === "head"} />
               <Toggle label="Ground shadow" checked={groundShadow} onChange={setGroundShadow} />
@@ -679,25 +1241,54 @@ function App() {
 
         {tab === "actions" && (
           <>
-            <SelectField label="Mode (test actions in context)" value={mode} onChange={(v) => setMode(v as Mode)} options={modes.map((m) => ({ value: m, label: m }))} />
+            <SelectField
+              label="Mode (test actions in context)"
+              value={mode}
+              onChange={(v) => setMode(v as Mode)}
+              options={modes.map((m) => ({ value: m, label: m }))}
+            />
             <Section title="Gestures">
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {gestures.map((spec) => (
-                  <Btn key={spec.name} onClick={() => fireAction(spec)}>{spec.name}</Btn>
+                  <Btn key={spec.name} onClick={() => fireAction(spec)}>
+                    {spec.name}
+                  </Btn>
                 ))}
               </div>
             </Section>
             <Divider />
             <Section title="Movement">
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                <Btn onClick={() => fireAction({ name: "walk", direction: "left", distance: walkDistance })}>walk ←</Btn>
-                <Btn onClick={() => fireAction({ name: "walk", direction: "right", distance: walkDistance })}>walk →</Btn>
-                <Btn title="come in from the left" onClick={() => fireAction({ name: "come", direction: "left", distance: walkDistance })}>come ↦</Btn>
-                <Btn title="come in from the right" onClick={() => fireAction({ name: "come", direction: "right", distance: walkDistance })}>come ↤</Btn>
+                <Btn onClick={() => fireAction({ name: "walk", direction: "left", distance: walkDistance })}>
+                  walk ←
+                </Btn>
+                <Btn onClick={() => fireAction({ name: "walk", direction: "right", distance: walkDistance })}>
+                  walk →
+                </Btn>
+                <Btn
+                  title="come in from the left"
+                  onClick={() => fireAction({ name: "come", direction: "left", distance: walkDistance })}
+                >
+                  come ↦
+                </Btn>
+                <Btn
+                  title="come in from the right"
+                  onClick={() => fireAction({ name: "come", direction: "right", distance: walkDistance })}
+                >
+                  come ↤
+                </Btn>
                 <Btn onClick={() => fireAction({ name: "drop", distance: walkDistance })}>drop ↓</Btn>
                 <Btn onClick={() => fireAction({ name: "jump" })}>jump ↑</Btn>
               </div>
-              <Slider label="Distance" min={0.5} max={10} step={0.5} value={walkDistance} onChange={setWalkDistance} format={(v) => v.toFixed(1)} />
+              <Slider
+                label="Distance"
+                min={0.5}
+                max={10}
+                step={0.5}
+                value={walkDistance}
+                onChange={setWalkDistance}
+                format={(v) => v.toFixed(1)}
+              />
             </Section>
             <Divider />
             <Section title="Speech">
@@ -711,9 +1302,20 @@ function App() {
               />
               <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
                 <div style={{ width: 120 }}>
-                  <SelectField label="Side" value={speechSide} onChange={(v) => setSpeechSide(v as SpeechSide)} options={[{ value: "auto", label: "auto" }, { value: "left", label: "left" }, { value: "right", label: "right" }]} />
+                  <SelectField
+                    label="Side"
+                    value={speechSide}
+                    onChange={(v) => setSpeechSide(v as SpeechSide)}
+                    options={[
+                      { value: "auto", label: "auto" },
+                      { value: "left", label: "left" },
+                      { value: "right", label: "right" },
+                    ]}
+                  />
                 </div>
-                <Btn variant="accent" onClick={fireSpeech} disabled={speechText.length === 0} style={{ flex: 1 }}>Say</Btn>
+                <Btn variant="accent" onClick={fireSpeech} disabled={speechText.length === 0} style={{ flex: 1 }}>
+                  Say
+                </Btn>
               </div>
             </Section>
           </>
@@ -721,14 +1323,19 @@ function App() {
 
         {tab === "debug" && (
           <>
-            <span style={{ fontSize: 12, color: "var(--color-ink-muted)" }}>Override any capability — engage any combination; each pins at its rest value, then scrub.</span>
+            <span style={{ fontSize: 12, color: "var(--color-ink-muted)" }}>
+              Override any capability — engage any combination; each pins at its rest value, then scrub.
+            </span>
             {Object.entries(debugGroups).map(([group, caps]) => (
               <Section key={group} title={group}>
                 {caps.map(({ key, rest, sub }) => {
                   const engaged = key in overrides;
                   const value = engaged ? overrides[key] : rest;
                   return (
-                    <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, opacity: engaged ? 1 : 0.55 }}>
+                    <div
+                      key={key}
+                      style={{ display: "flex", alignItems: "center", gap: 10, opacity: engaged ? 1 : 0.55 }}
+                    >
                       <button
                         type="button"
                         className="switch"
@@ -739,9 +1346,31 @@ function App() {
                         onClick={() => toggleOverride(key, rest)}
                         style={{ transform: "scale(0.82)", transformOrigin: "left center" }}
                       />
-                      <span className="mono" style={{ fontSize: 12, width: 92, color: "var(--color-ink)" }}>{sub}</span>
-                      <input type="range" min={0} max={1} step={0.01} value={value} disabled={!engaged} onChange={(e) => setOverrideValue(key, Number(e.target.value))} style={{ flex: 1, minWidth: 0 }} />
-                      <span className="mono" style={{ fontSize: 12, width: 32, textAlign: "right", color: "var(--color-ink-muted)", fontVariantNumeric: "tabular-nums" }}>{value.toFixed(2)}</span>
+                      <span className="mono" style={{ fontSize: 12, width: 92, color: "var(--color-ink)" }}>
+                        {sub}
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={value}
+                        disabled={!engaged}
+                        onChange={(e) => setOverrideValue(key, Number(e.target.value))}
+                        style={{ flex: 1, minWidth: 0 }}
+                      />
+                      <span
+                        className="mono"
+                        style={{
+                          fontSize: 12,
+                          width: 32,
+                          textAlign: "right",
+                          color: "var(--color-ink-muted)",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {value.toFixed(2)}
+                      </span>
                     </div>
                   );
                 })}
@@ -751,7 +1380,13 @@ function App() {
         )}
 
         {tab === "anatomy" && (
-          <AnatomyEditor anatomy={draft} onChange={editAnatomy} onExport={exportAnatomy} onReset={resetAnatomy} copied={copied} />
+          <AnatomyEditor
+            anatomy={draft}
+            onChange={editAnatomy}
+            onExport={exportAnatomy}
+            onReset={resetAnatomy}
+            copied={copied}
+          />
         )}
       </div>
     </div>
@@ -760,20 +1395,65 @@ function App() {
   return (
     <div className="ambient-field" style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       {/* Top bar: wordmark · swap · Talagent funnel CTA */}
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 56, padding: "0 20px", flexShrink: 0, position: "relative", zIndex: 5 }}>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          height: 56,
+          padding: "0 20px",
+          flexShrink: 0,
+          position: "relative",
+          zIndex: 5,
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Mark size={24} />
           <span className="wordmark">avagent</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Btn variant="ghost" className="icon-btn" title="Reset all settings" aria-label="Reset all settings" onClick={resetAll}>↺</Btn>
-          <Btn variant="ghost" className="icon-btn" title="Swap sides" aria-label="Swap sides" onClick={() => setSwapped((s) => !s)}>⇄</Btn>
-          <a className="tbtn tbtn-ghost" href="https://talagent.net" target="_blank" rel="noreferrer" style={{ height: 36 }}>See live production demo ↗</a>
+          <Btn
+            variant="ghost"
+            className="icon-btn"
+            title="Reset all settings"
+            aria-label="Reset all settings"
+            onClick={resetAll}
+          >
+            ↺
+          </Btn>
+          <Btn
+            variant="ghost"
+            className="icon-btn"
+            title="Swap sides"
+            aria-label="Swap sides"
+            onClick={() => setSwapped((s) => !s)}
+          >
+            ⇄
+          </Btn>
+          <a
+            className="tbtn tbtn-ghost"
+            href="https://talagent.net"
+            target="_blank"
+            rel="noreferrer"
+            style={{ height: 36 }}
+          >
+            See live production demo ↗
+          </a>
         </div>
       </header>
 
       {/* Body: two columns, swappable */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: swapped ? "row-reverse" : "row", gap: 18, padding: "0 18px 18px", boxSizing: "border-box" }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: swapped ? "row-reverse" : "row",
+          gap: 18,
+          padding: "0 18px 18px",
+          boxSizing: "border-box",
+        }}
+      >
         {stage}
         {rail}
       </div>

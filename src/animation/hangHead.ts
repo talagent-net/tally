@@ -5,9 +5,9 @@ import type { AnimationFn } from "./engine";
 // translation, returns to rest). Built from head.tilt + eyes.blink + a small body.crouch dip (the
 // head/shoulders sink a few px) — no new capability.
 
-const FALL_MS = 380;   // head drops + eyes fall
-const HOLD_MS = 1900;  // the held "hung" beat (~1.3s; the "second or two")
-const LIFT_MS = 480;   // ease back up to rest
+const FALL_MS = 380; // head drops + eyes fall
+const HOLD_MS = 1900; // the held "hung" beat (~1.3s; the "second or two")
+const LIFT_MS = 480; // ease back up to rest
 export const HANG_HEAD_DURATION_MS = FALL_MS + HOLD_MS + LIFT_MS;
 
 const smoothstep = (t: number) => t * t * (3 - 2 * t);

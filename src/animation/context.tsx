@@ -44,4 +44,3 @@ export function useCapabilityAnimation(key: string, anim: AnimationFn | null): v
     return () => engine.setAnimation(key, null);
   }, [engine, key, anim]);
 }
-

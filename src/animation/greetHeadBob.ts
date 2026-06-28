@@ -6,9 +6,9 @@ import { createCyclicAnimation, type CyclicDirection } from "./cyclic";
 // boundary for a clean handoff. head.bob: 0.5 centered, 0 = left tilt, 1 = right tilt.
 
 const NEUTRAL = 0.5;
-const AMPLITUDE = 0.12;                 // a little side-to-side — "bop a little bit"
-const CYCLE_MS = 450;                   // matches the wave's cadence so they move together
-const CYCLES = 1.5;                       // matches the wave
+const AMPLITUDE = 0.12; // a little side-to-side — "bop a little bit"
+const CYCLE_MS = 450; // matches the wave's cadence so they move together
+const CYCLES = 1.5; // matches the wave
 const DIRECTION: CyclicDirection = 1;
 
 export const GREET_HEAD_BOB_DURATION_MS = CYCLE_MS * CYCLES;
