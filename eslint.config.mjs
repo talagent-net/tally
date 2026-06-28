@@ -22,6 +22,10 @@ export default tseslint.config(
       "react-hooks/exhaustive-deps": "warn",
     },
   },
+  {
+    files: ["**/*.{js,mjs,cjs}"],
+    languageOptions: { globals: { ...globals.node } },
+  },
   // Disable formatting-related rules that would conflict with Prettier (keep last).
   prettier,
 );

@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, ButtonHTMLAttributes, RefObject } from "react";
 import { createRoot } from "react-dom/client";
 import { Avagent, avagent, characters, measureFigure, themes } from "../src";
-import type { Mode, ActionSpec, SpeechSpec, SpeechSide, Anatomy } from "../src";
+import type { ColorTheme, Mode, ActionSpec, SpeechSpec, SpeechSide, Anatomy } from "../src";
 import openclaw from "./openclaw.png";
 import claudecode from "./claudecode.png";
 import codex from "./codex.png";
@@ -68,6 +68,36 @@ const GROUND_Y = 480; // px from the demo pane's top to the figure's anchor — 
 const DEFAULT_SPEECH = "Hi, I'm Avagent. Agent and avatar built by Talagent.";
 
 // ── Small presentational primitives (Talagent design language) ─────────────────────────────────
+function GithubMark({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width={size}
+      height={size}
+      fill="currentColor"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  );
+}
+
+function NpmMark({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="currentColor"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z" />
+    </svg>
+  );
+}
+
 // Talagent agent-head mark (§10) — recolours via currentColor; eyes are true cut-outs.
 function Mark({ size = 24 }: { size?: number }) {
   return (
@@ -81,6 +111,33 @@ function Mark({ size = 24 }: { size?: number }) {
     >
       <path d="M 190 105 C 190 81.964 214.531 60 240 60 L 410 60 C 434.514 60 460 81.413 460 105 L 460 150 C 480.847 150 490 150 490 180 L 490 225 C 490 255 480.397 255 460 255 C 460 276.857 434.207 300 410 300 L 300 300 L 240 355 L 240 300 C 215.606 300 190 277.768 190 255 C 167.78 255 160 255 160 225 L 160 180 C 160 150 169.986 150 190 150 L 190 105 Z M 260 255 C 280 255 280 235.444 280 215 C 280 197.864 280 180 260 180 C 240 180 240 198.714 240 215 C 240 236.074 240 255 260 255 Z M 390 255 C 410 255 410 239.847 410 215 C 410 197.588 410 180 390 180 C 370 180 370 197.835 370 215 C 370 239.488 370 255 390 255 Z" />
     </svg>
+  );
+}
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+      <span className="mono" style={{ fontSize: 12, color: "var(--color-ink-muted)" }}>
+        {label}
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          type="color"
+          className="color-swatch"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={label}
+        />
+        <input
+          type="text"
+          className="tinput-sm"
+          style={{ width: 84 }}
+          value={value}
+          spellCheck={false}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </div>
+    </label>
   );
 }
 
@@ -400,12 +457,13 @@ function BBoxOverlay({
   );
 }
 
-type TabId = "general" | "actions" | "debug" | "anatomy";
+type TabId = "general" | "actions" | "debug" | "anatomy" | "colors";
 const TABS: { id: TabId; label: string }[] = [
   { id: "general", label: "General" },
   { id: "actions", label: "Actions" },
   { id: "debug", label: "Debug" },
   { id: "anatomy", label: "Anatomy" },
+  { id: "colors", label: "Colors" },
 ];
 
 // ── Persistence ──────────────────────────────────────────────────────────────────────────────────
@@ -439,7 +497,11 @@ function loadSaved(): Partial<SavedState> {
 
 function App() {
   const saved = useMemo(loadSaved, []);
-  const [themeName, setThemeName] = useState(saved.themeName && saved.themeName in themes ? saved.themeName : "steel");
+  const initialThemeName = saved.themeName && saved.themeName in themes ? saved.themeName : "steel";
+  const [themeName, setThemeName] = useState(initialThemeName);
+  // Editable copy of the active colorway — the Colors tab edits this, and the figure renders from it.
+  const [themeDraft, setThemeDraft] = useState<ColorTheme>(() => ({ ...themes[initialThemeName] }));
+  const [themeCopied, setThemeCopied] = useState(false);
   const [characterName, setCharacterName] = useState(
     saved.characterName && saved.characterName in characters ? saved.characterName : "Avagent",
   );
@@ -477,6 +539,18 @@ function App() {
   const changeCharacter = (name: string) => {
     setCharacterName(name);
     if (editMode) setDraft(structuredClone(characters[name]));
+  };
+  // Selecting a colorway loads it into the editable draft (the figure renders from the draft).
+  const changeColorway = (name: string) => {
+    setThemeName(name);
+    setThemeDraft({ ...themes[name] });
+  };
+  const setThemeColor = (key: keyof ColorTheme, value: string) => setThemeDraft((t) => ({ ...t, [key]: value }));
+  const resetTheme = () => setThemeDraft({ ...themes[themeName] });
+  const exportTheme = async () => {
+    await navigator.clipboard.writeText(JSON.stringify(themeDraft, null, 2));
+    setThemeCopied(true);
+    setTimeout(() => setThemeCopied(false), 1500);
   };
   const editAnatomy = (path: string[], value: number) => setDraft((d) => setAtPath(d, path, value));
   const resetAnatomy = () => setDraft(structuredClone(characters[characterName]));
@@ -589,6 +663,8 @@ function App() {
     }
     setCharacterName("Avagent");
     setThemeName("steel");
+    setThemeDraft({ ...themes["steel"] });
+    setThemeCopied(false);
     setScale(1);
     setLogoName("openclaw");
     setMode("hangout");
@@ -641,7 +717,7 @@ function App() {
           mode={mode}
           view={view}
           anatomy={activeAnatomy}
-          theme={themes[themeName]}
+          theme={themeDraft}
           showAnchor={showAnchor}
           groundShadow={groundShadow}
           chestImage={logos[logoName]}
@@ -696,7 +772,7 @@ function App() {
                   <SelectField
                     label="Colorway"
                     value={themeName}
-                    onChange={setThemeName}
+                    onChange={changeColorway}
                     options={Object.keys(themes).map((n) => ({ value: n, label: n }))}
                   />
                 </div>
@@ -881,6 +957,41 @@ function App() {
             copied={copied}
           />
         )}
+
+        {tab === "colors" && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <span className="section-label">Colors</span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn variant="ghost" onClick={resetTheme}>
+                  Reset
+                </Btn>
+                <Btn variant="accent" onClick={exportTheme} style={{ minWidth: 78 }}>
+                  {themeCopied ? "Copied!" : "Export"}
+                </Btn>
+              </div>
+            </div>
+            <Section title={`Palette · ${themeName}`}>
+              <ColorField label="primary" value={themeDraft.primary} onChange={(v) => setThemeColor("primary", v)} />
+              <ColorField
+                label="primaryDark"
+                value={themeDraft.primaryDark}
+                onChange={(v) => setThemeColor("primaryDark", v)}
+              />
+              <ColorField
+                label="primaryMidDark"
+                value={themeDraft.primaryMidDark}
+                onChange={(v) => setThemeColor("primaryMidDark", v)}
+              />
+              <ColorField
+                label="primaryMid"
+                value={themeDraft.primaryMid}
+                onChange={(v) => setThemeColor("primaryMid", v)}
+              />
+              <ColorField label="outline" value={themeDraft.outline} onChange={(v) => setThemeColor("outline", v)} />
+            </Section>
+          </>
+        )}
       </div>
     </div>
   );
@@ -923,6 +1034,26 @@ function App() {
           >
             ⇄
           </Btn>
+          <a
+            className="tbtn tbtn-ghost icon-btn"
+            href="https://github.com/talagent-net/avagent"
+            target="_blank"
+            rel="noreferrer"
+            title="GitHub repository"
+            aria-label="GitHub repository"
+          >
+            <GithubMark />
+          </a>
+          <a
+            className="tbtn tbtn-ghost icon-btn"
+            href="https://www.npmjs.com/package/@talagent-net/avagent"
+            target="_blank"
+            rel="noreferrer"
+            title="npm package"
+            aria-label="npm package"
+          >
+            <NpmMark />
+          </a>
           <a
             className="tbtn tbtn-ghost"
             href="https://talagent.net"

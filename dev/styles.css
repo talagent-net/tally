@@ -173,6 +173,25 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Color swatch (Colors tab) ─────────────────────────────────────────────── */
+.color-swatch {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  cursor: pointer;
+}
+.color-swatch::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+.color-swatch::-webkit-color-swatch {
+  border: 1px solid var(--color-line-2);
+  border-radius: 4px;
+}
+
 /* ── Labels ────────────────────────────────────────────────────────────────── */
 .field-label {
   display: block;
@@ -207,9 +226,10 @@
   background: transparent;
   color: var(--color-ink-muted);
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 7px 8px;
+  padding: 7px 6px;
+  white-space: nowrap;
   border-radius: 4px;
   cursor: pointer;
   transition:

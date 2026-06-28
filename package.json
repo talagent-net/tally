@@ -1,6 +1,6 @@
 {
   "name": "@talagent-net/avagent",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Expressive, animated avatar characters for your agents — chat or any UI. A React component, rendered in plain HTML/CSS.",
   "keywords": [
     "avatar",
@@ -50,7 +50,8 @@
     "prepare": "tsup",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "icons": "node scripts/gen-icons.mjs"
   },
   "peerDependencies": {
     "react": ">=18",
@@ -58,6 +59,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/vite": "^4.3.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
