@@ -242,6 +242,11 @@ export interface DropAnatomy {
   flailSpeed: number;
 }
 
+/**
+ * The complete set of PROPORTIONS that define one character — the only thing that varies between
+ * characters. Theme (colorway) and behavior (capabilities, animations, motion-tuning) are orthogonal,
+ * shared concerns. Pass one to the `anatomy` prop; `avagent` is the default preset. See ANATOMY_SPEC.md.
+ */
 export interface Anatomy {
   global: GlobalAnatomy;
   body: BodyAnatomy;

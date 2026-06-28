@@ -6,6 +6,8 @@ export { colors } from "./colors";
 export { measureFigure } from "./measure";
 export type { FigureBox } from "./measure";
 export { avagent } from "./anatomy";
+export { characters } from "./characters";
+export { themes } from "./themes";
 export type {
   Anatomy,
   GlobalAnatomy,

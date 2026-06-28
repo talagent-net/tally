@@ -261,6 +261,15 @@ const effectiveUpperTurn = (caps: ReadonlyMap<string, number>): number => {
   return Math.max(0, Math.min(1, body + (upper - 0.5)));
 };
 
+/**
+ * The ambient behavioral mode — "what the avatar is doing" when no one-shot `action` is playing.
+ * - `hangout` — relaxed idle: blinks, breathes, glances around.
+ * - `track` — the head follows the cursor.
+ * - `connecting` — an active/"online" state with signal rings pulsing from the antenna.
+ * - `frozen` — a still resting portrait, every ambient animation off (reduced-motion friendly).
+ * - `snooze` — asleep: settles into a sleeping pose, breathes slowly, floats cartoon "Z"s.
+ * - `debug` — a neutral pose, for inspecting capability overrides.
+ */
 export type Mode = "hangout" | "track" | "connecting" | "frozen" | "snooze" | "debug";
 
 // `snooze` mode: the figure is asleep. It settles into a sleeping pose — head tilted down and lolled
@@ -290,18 +299,31 @@ const TRACK_TILT_MAX = 0.2; // max |head.tilt − 0.5| (input range; head.tilt i
 const TRACK_BODY_TURN_FRACTION = 0.64; // share of the head's turn carried by a slight body.turn (the rest stays a head offset)
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 
+/**
+ * A colorway for the figure — the four body tones (dark → light) plus the silhouette outline, and an
+ * optional bubble font. Pass one to the `theme` prop; {@link defaultTheme} (the `steel` colorway) is
+ * used if omitted. Theme is orthogonal to anatomy (proportions) and behavior.
+ */
 export interface ColorTheme {
+  /** The main body fill. */
   primary: string;
+  /** The darkest body tone (deepest shading). */
   primaryDark: string;
-  primaryMidDark: string; // a tone between primary and primaryMid (lightness: primaryDark < primary < primaryMidDark < primaryMid)
+  /** A tone between `primary` and `primaryMid` (lightness: primaryDark < primary < primaryMidDark < primaryMid). */
+  primaryMidDark: string;
+  /** The lightest body tone (highlight). */
   primaryMid: string;
+  /** The dark silhouette stroke color. */
   outline: string;
-  // Font stack for the speech-bubble text. Optional — defaults to a Plex-first system fallback
-  // (DEFAULT_FONT_FAMILY), referencing IBM Plex Sans without bundling it. The consumer's app is
-  // expected to load the actual font; this only names it.
+  /**
+   * Font stack for the speech-bubble text. Optional — defaults to a Plex-first system fallback that
+   * references IBM Plex Sans WITHOUT bundling it. The consumer's app is expected to load the actual
+   * font; this only names it.
+   */
   fontFamily?: string;
 }
 
+/** The default colorway (the `steel` blue) used when no `theme` prop is provided. */
 export const defaultTheme: ColorTheme = {
   primary: defaultColors.primary,
   primaryDark: defaultColors.primaryDark,
@@ -311,72 +333,113 @@ export const defaultTheme: ColorTheme = {
   fontFamily: DEFAULT_FONT_FAMILY,
 };
 
+/**
+ * Props for {@link Avagent}. All optional — the component renders the default character idling with
+ * none. Three independent axes: `anatomy` (proportions), `theme` (colorway), and behavior (`mode`
+ * plus one-shot `action`s and an optional `speech` overlay).
+ */
 export interface AvagentProps {
+  /** Uniform size multiplier for the whole figure (1 unit = 1px at scale 1). Default 1. */
   scale?: number;
+  /** The ambient behavioral mode. Default `"hangout"`. See {@link Mode}. */
   mode?: Mode;
+  /** The colorway. Default {@link defaultTheme}. */
   theme?: ColorTheme;
+  /** Draw debug pivot/anchor markers over the figure. Default false. */
   showAnchor?: boolean;
-  // Optional logo PNG, rendered (mask-tinted in the light theme tone) on top of the solid chest
-  // panel. A single image — the panel itself replaces the old dark outline PNG.
+  /**
+   * Optional logo PNG, rendered (mask-tinted in the light theme tone) on top of the solid chest
+   * panel. A single image — the panel itself replaces the old dark outline PNG.
+   */
   chestImage?: string;
-  // Debug overrides: a map of capability key → held value (0..1). Each listed capability is
-  // pinned to its value regardless of mode, bypassing the regular mode animations. Multiple
-  // independent capabilities can be held simultaneously.
+  /**
+   * Debug overrides: a map of capability key → held value (0..1). Each listed capability is pinned to
+   * its value regardless of mode, bypassing the regular mode animations. Multiple independent
+   * capabilities can be held simultaneously.
+   */
   debugOverrides?: Record<string, number>;
-  // One-shot actions override the mode for their duration. Pass a spec object, e.g.
-  // { name: "agree" } or { name: "walk", direction: "right", distance: 2 }. The component
-  // dedupes against the last-fired spec (by value), so to re-fire an identical action set this
-  // to null then back. `walk` distance is in body-widths.
+  /**
+   * One-shot actions override the mode for their duration. Pass a spec object, e.g. `{ name: "agree" }`
+   * or `{ name: "walk", direction: "right", distance: 2 }`. The component dedupes against the last-fired
+   * spec (by value), so to re-fire an identical action set this to null then back. `walk` distance is in
+   * body-widths. See {@link ActionSpec}.
+   */
   action?: ActionSpec | null;
-  // Fired when a walk action finishes, reporting the net horizontal move in scaled pixels
-  // (signed: positive = rightward). The figure retains this displacement.
+  /**
+   * Fired when a walk action finishes, reporting the net horizontal move in scaled pixels (signed:
+   * positive = rightward). The figure retains this displacement.
+   */
   onWalkComplete?: (deltaPx: number) => void;
-  // A speech bubble shown next to the figure. This is an OVERLAY, independent of `action`: it
-  // rides on top of whatever Avagent is doing (idle, tracking, mid-gesture) and times itself out
-  // after a read-proportional duration. Like `action`, it dedupes by value — to re-say identical
-  // text, set this to null then back. Setting it to null is a no-op for an in-flight bubble (the
-  // bubble dismisses on its own timer, not by clearing the prop) — UNLESS `speechHold` is set, in
-  // which case clearing it is how the caller dismisses. `side` defaults to "auto" (opens toward the
-  // roomier side based on the figure's horizontal position in the viewport).
+  /**
+   * A speech bubble shown next to the figure. This is an OVERLAY, independent of `action`: it rides on
+   * top of whatever Avagent is doing (idle, tracking, mid-gesture) and times itself out after a
+   * read-proportional duration. Like `action`, it dedupes by value — to re-say identical text, set this
+   * to null then back. Setting it to null is a no-op for an in-flight bubble (it dismisses on its own
+   * timer, not by clearing the prop) — UNLESS `speechHold` is set, in which case clearing it is how the
+   * caller dismisses. `side` defaults to "auto" (opens toward the roomier side based on the figure's
+   * horizontal position in the viewport). See {@link SpeechSpec}.
+   */
   speech?: SpeechSpec | null;
-  // Hold the speech bubble open indefinitely instead of auto-dismissing on the read timer. Default
-  // false (timer-driven). When true, the bubble stays put after its entrance — no leave, no
-  // timer-driven `onSpeechEnd` — and dismissal becomes caller-driven: clear `speech` to null (or
-  // replace it with new text) to play the normal leave animation and fire `onSpeechEnd`. Use this
-  // for question bubbles whose Yes/No CTAs persist, so the prompt can't vanish before the user
-  // answers. Toggling this on/off mid-bubble takes effect immediately (true freezes the in-flight
-  // bubble open; false hands it back to the read timer). Default behavior is unchanged for callers
-  // that never pass it.
+  /**
+   * Hold the speech bubble open indefinitely instead of auto-dismissing on the read timer. Default
+   * false (timer-driven). When true, the bubble stays put after its entrance — no leave, no timer-driven
+   * `onSpeechEnd` — and dismissal becomes caller-driven: clear `speech` to null (or replace it with new
+   * text) to play the normal leave animation and fire `onSpeechEnd`. Use this for question bubbles whose
+   * Yes/No CTAs persist, so the prompt can't vanish before the user answers. Toggling this on/off
+   * mid-bubble takes effect immediately. Default behavior is unchanged for callers that never pass it.
+   */
   speechHold?: boolean;
-  // Fired when a speech bubble finishes (times out and is removed, or — with `speechHold` — is
-  // dismissed by the caller clearing `speech`).
+  /**
+   * Fired when a speech bubble finishes (times out and is removed, or — with `speechHold` — is
+   * dismissed by the caller clearing `speech`).
+   */
   onSpeechEnd?: () => void;
-  // Enlarge the speech bubble's TEXT independently of the figure: `speechScale` scales only the font
-  // size and the max-width (text-wrap column) by `scale * speechScale`. Everything else — padding,
-  // outline stroke, corner radius, the tail, the anchor to the head, and head-follow drift — stays on
-  // the figure `scale`, so the chrome and the figure's linework weight are unchanged and the bubble
-  // stays pinned to the head. The box still reflows to hug the larger text. Default 1 (no change).
-  // Use to keep a readable bubble on small screens while the figure stays at scale=1.
+  /**
+   * Enlarge the speech bubble's TEXT independently of the figure: scales only the font size and the
+   * max-width (text-wrap column) by `scale * speechScale`. Everything else — padding, outline stroke,
+   * corner radius, the tail, the anchor to the head, and head-follow drift — stays on the figure `scale`,
+   * so the chrome and the figure's linework weight are unchanged and the bubble stays pinned to the head.
+   * The box still reflows to hug the larger text. Default 1 (no change). Use to keep a readable bubble on
+   * small screens while the figure stays at scale=1.
+   */
   speechScale?: number;
-  // The robot's anatomy (proportions). A character is purely this object; theme and behavior are
-  // orthogonal. Defaults to `avagent`. Provide a different preset to render a differently-proportioned
-  // robot. See ANATOMY_SPEC.md.
+  /**
+   * The robot's anatomy (proportions). A character is purely this object; theme and behavior are
+   * orthogonal. Defaults to `avagent`. Provide a different preset to render a differently-proportioned
+   * robot. See {@link Anatomy} and ANATOMY_SPEC.md.
+   */
   anatomy?: Anatomy;
-  // When the host renders a ground plane behind the figure, set this to clip the shadow to the pixels
-  // AT/BELOW the feet (so it reads as a cast shadow on the floor instead of a soft ellipse that smudges
-  // above the ground line). Default false (full soft shadow, for a plain/no-ground background).
+  /**
+   * When the host renders a ground plane behind the figure, set this to clip the shadow to the pixels
+   * AT/BELOW the feet (so it reads as a cast shadow on the floor instead of a soft ellipse that smudges
+   * above the ground line). Default false (full soft shadow, for a plain/no-ground background).
+   */
   groundShadow?: boolean;
-  // Which part of the figure to render. "full" (default) = the whole standing figure. "head" = ONLY the
-  // head subtree (eyes/ears/antenna), for compact author avatars at profile-pic scale. This is a
-  // STRUCTURAL choice, orthogonal to `mode` (behavior): pair `view="head"` with `mode="frozen"` for a
-  // still portrait, or any other mode for an animated head. In head-only the component sizes itself to
-  // the head's own anatomy-derived bounding box (head width/height + the antenna that pokes above the
-  // crown — all included, nothing clipped), so a host can size a slot to that box instead of measuring
-  // the DOM. The body, arms, legs, ground shadow, locomotion and speech bubble are not rendered, and
-  // `chestImage`/`groundShadow` are ignored (they live on the body).
+  /**
+   * Which part of the figure to render. `"full"` (default) = the whole standing figure. `"head"` = ONLY
+   * the head subtree (eyes/ears/antenna), for compact author avatars at profile-pic scale. This is a
+   * STRUCTURAL choice, orthogonal to `mode` (behavior): pair `view="head"` with `mode="frozen"` for a
+   * still portrait, or any other mode for an animated head. In head-only the component sizes itself to
+   * the head's own anatomy-derived bounding box (head width/height + the antenna that pokes above the
+   * crown — all included, nothing clipped), so a host can size a slot to that box instead of measuring
+   * the DOM. The body, arms, legs, ground shadow, locomotion and speech bubble are not rendered, and
+   * `chestImage`/`groundShadow` are ignored (they live on the body).
+   */
   view?: "full" | "head";
 }
 
+/**
+ * The avatar component — an animated robot character rendered in plain HTML/CSS (no SVG or canvas).
+ *
+ * Three orthogonal axes drive it: `anatomy` (proportions — *which* character), `theme` (colorway), and
+ * behavior — the ambient `mode` plus one-shot `action`s and an optional `speech` bubble overlay. All
+ * props are optional; with none it renders the default `avagent` character idling in `hangout`.
+ *
+ * @example
+ * ```tsx
+ * <Avagent mode="track" action={{ name: "agree" }} speech={{ text: "Hi!" }} />
+ * ```
+ */
 export function Avagent(props: AvagentProps) {
   const anatomy = props.anatomy ?? avagent;
   const rig = useMemo(() => resolveRig(anatomy), [anatomy]);

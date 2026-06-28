@@ -1,3 +1,8 @@
+/**
+ * The default brand palette (the `steel` colorway) as raw hex values — a convenience for hosts that
+ * want to reference the avatar's default tones elsewhere in their UI. The avatar itself is themed via
+ * the `theme` prop / `ColorTheme`, not this object.
+ */
 export const colors = {
   background: "#ffffff",
   primary: "#415e74",

@@ -8,9 +8,11 @@ import { useAnimationRenderer } from "./animation/context";
 // as a separate channel, then times itself out. So it gets its own prop (`speech`) and its own
 // little lifecycle in Avagent, parallel to the action lifecycle, rather than a slot in createAction.
 
-// "auto" picks left/right at show-time from the figure's horizontal position in the viewport (it
-// opens toward the roomier side — figure on the left half of the screen → bubble opens right).
-// Avagent resolves "auto" to a concrete side before rendering the bubble.
+/**
+ * Which side of the figure a speech bubble opens on. `"auto"` picks left/right at show-time from the
+ * figure's horizontal position in the viewport — it opens toward the roomier side (figure on the left
+ * half of the screen → bubble opens right) and is resolved to a concrete side before rendering.
+ */
 export type SpeechSide = "left" | "right" | "auto";
 
 // Default font stack for the bubble text. References IBM Plex Sans (the consumer app's paragraph
@@ -18,10 +20,14 @@ export type SpeechSide = "left" | "right" | "auto";
 // otherwise it falls back cleanly to the system UI font. Consumers override via theme.fontFamily.
 export const DEFAULT_FONT_FAMILY = '"IBM Plex Sans", system-ui, -apple-system, sans-serif';
 
+/** A speech bubble to show beside the figure — see the `speech` prop on {@link AvagentProps}. */
 export type SpeechSpec = {
+  /** The bubble's text. Display duration is read-time-proportional unless held open via `speechHold`. */
   text: string;
-  // Which side of Avagent the bubble sits on; the tail always points back toward the head. Defaults
-  // to "auto" (open toward the roomier side based on the figure's position in the viewport).
+  /**
+   * Which side of the figure the bubble sits on; the tail always points back toward the head. Defaults
+   * to `"auto"` (opens toward the roomier side based on the figure's position in the viewport).
+   */
   side?: SpeechSide;
 };
 

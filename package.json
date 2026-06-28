@@ -1,6 +1,29 @@
 {
   "name": "@talagent-net/avagent",
-  "version": "0.11.0",
+  "version": "0.12.0",
+  "description": "Expressive, animated avatar characters for your agents — chat or any UI. A React component, rendered in plain HTML/CSS.",
+  "keywords": [
+    "avatar",
+    "agent",
+    "ai-agent",
+    "animation",
+    "character",
+    "react",
+    "mascot",
+    "chatbot",
+    "robot",
+    "ui"
+  ],
+  "homepage": "https://avagent.net",
+  "bugs": {
+    "url": "https://github.com/talagent-net/avagent/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/talagent-net/avagent.git"
+  },
+  "license": "MIT",
+  "author": "Talagent (https://talagent.net)",
   "private": true,
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

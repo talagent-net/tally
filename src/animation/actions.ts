@@ -77,6 +77,13 @@ export type Action = {
 // come is an ENTRANCE — Avagent starts `distance` off the anchor on the given side and walks IN to
 // the anchor, ending exactly there (no net displacement). `direction` for come is the side Avagent
 // comes FROM; distance is in the same body-widths as walk.
+/**
+ * A one-shot action for the `action` prop — a discriminated union on `name`. Gestures (`agree`,
+ * `disagree`, `agreeShort`, `disagreeShort`, `greet`, `shrug`, `hangHead`) take no parameters.
+ * Locomotion takes more: `walk`/`come` need a `direction` + `distance` (in body-widths), `drop` a
+ * `distance`, `jump` none. `walk` travels away from the anchor; `come` is the inverse — an entrance
+ * that starts `distance` off the anchor on `direction`'s side and walks in to rest on it.
+ */
 export type ActionSpec = (
   | { name: "disagree" }
   | { name: "agree" }
@@ -90,15 +97,16 @@ export type ActionSpec = (
   | { name: "shrug" }
   | { name: "hangHead" }
 ) & {
-  // Opt-in preemption. When this spec is dispatched while another action is in flight AND the active
-  // action is a pure gesture, it preempts immediately (and flushes any queued spec) instead of
-  // queueing behind it — used for user-triggered actions that shouldn't lag behind an idle gesture.
-  // Ignored (falls back to the default queue) when the active action is locomotion/vertical, whose
-  // net body.x/body.y side effect is settled only on completion — see isPureGesture. Absent = the
-  // default non-interrupting queue-behind behavior.
+  /**
+   * Opt-in preemption. When this spec is dispatched while a pure gesture is in flight, it preempts
+   * immediately (flushing any queued spec) instead of queueing behind it — for user-triggered actions
+   * that shouldn't lag behind an idle gesture. Ignored while locomotion/vertical actions run (their net
+   * position is settled only on completion). Absent = the default non-interrupting queue-behind.
+   */
   interrupt?: boolean;
 };
 
+/** The `name` discriminant of every {@link ActionSpec} (e.g. `"agree" | "walk" | ...`). */
 export type ActionName = ActionSpec["name"];
 
 // walk/come commit a net body.x move, and drop/jump drive a body.y excursion — both settled ONLY in
