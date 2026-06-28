@@ -116,22 +116,45 @@ import { Avagent, themes } from "@talagent-net/avagent";
 
 ## Actions and speech
 
-Fire one-shot actions with the `action` prop, and show a speech bubble with `speech`. Both are independent of `mode`.
+Fire one-shot actions with the `action` prop. They override `mode` for their duration, then the avatar settles back into its `mode`.
+
+### Gestures
 
 <p align="center">
-  <img src="assets/avagent-greet.gif" alt="avagent greeting" height="240" />
-  <img src="assets/avagent-disagree.gif" alt="avagent disagreeing" height="240" />
-  <img src="assets/avagent-shrug.gif" alt="avagent shrugging" height="240" />
-  <img src="assets/avagent-jump.gif" alt="avagent jumping" height="240" />
+  <img src="assets/avagent-greet.gif" alt="avagent greeting" width="200" />
+  <img src="assets/avagent-disagree.gif" alt="avagent disagreeing" width="200" />
+  <img src="assets/avagent-shrug.gif" alt="avagent shrugging" width="200" />
 </p>
 
 ```tsx
-<Avagent action={{ name: "agree" }} />
-<Avagent action={{ name: "walk", direction: "right", distance: 2 }} />
-<Avagent speech={{ text: "On it." }} />
+<Avagent action={{ name: "greet" }} />
 ```
 
-Gestures include `agree`, `disagree`, `greet`, `shrug`, `hangHead`, and short variants. Movement includes `walk`, `come`, `drop`, and `jump`.
+The set: `agree`, `disagree`, `agreeShort`, `disagreeShort`, `greet`, `shrug`, `hangHead`.
+
+### Movement
+
+<p align="center">
+  <img src="assets/avagent-jump.gif" alt="avagent jumping" width="190" />
+</p>
+
+```tsx
+<Avagent action={{ name: "walk", direction: "right", distance: 2 }} />
+```
+
+The set: `walk`, `come`, `drop`, `jump`. Distance is measured in body-widths.
+
+### Speech
+
+A speech bubble rides on top of whatever the avatar is doing and times itself out. Show one with the `speech` prop.
+
+<p align="center">
+  <img src="assets/avagent-speech.gif" alt="avagent showing a speech bubble" width="430" />
+</p>
+
+```tsx
+<Avagent speech={{ text: "I can say things." }} />
+```
 
 ## Modes
 
