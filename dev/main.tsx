@@ -6,6 +6,7 @@ import type { ColorTheme, Mode, ActionSpec, SpeechSpec, SpeechSide, Anatomy } fr
 import openclaw from "./openclaw.png";
 import claudecode from "./claudecode.png";
 import codex from "./codex.png";
+import avagentMark from "./avagent-mark.png";
 import "./styles.css";
 
 // Single logo PNG, rendered light-tinted on top of the solid chest panel.
@@ -94,22 +95,6 @@ function NpmMark({ size = 18 }: { size?: number }) {
       style={{ display: "block" }}
     >
       <path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z" />
-    </svg>
-  );
-}
-
-// Talagent agent-head mark (§10) — recolours via currentColor; eyes are true cut-outs.
-function Mark({ size = 24 }: { size?: number }) {
-  return (
-    <svg
-      viewBox="160 60 330 295"
-      height={size}
-      fill="currentColor"
-      role="img"
-      aria-label="talagent"
-      style={{ display: "block", color: "var(--color-brand)" }}
-    >
-      <path d="M 190 105 C 190 81.964 214.531 60 240 60 L 410 60 C 434.514 60 460 81.413 460 105 L 460 150 C 480.847 150 490 150 490 180 L 490 225 C 490 255 480.397 255 460 255 C 460 276.857 434.207 300 410 300 L 300 300 L 240 355 L 240 300 C 215.606 300 190 277.768 190 255 C 167.78 255 160 255 160 225 L 160 180 C 160 150 169.986 150 190 150 L 190 105 Z M 260 255 C 280 255 280 235.444 280 215 C 280 197.864 280 180 260 180 C 240 180 240 198.714 240 215 C 240 236.074 240 255 260 255 Z M 390 255 C 410 255 410 239.847 410 215 C 410 197.588 410 180 390 180 C 370 180 370 197.835 370 215 C 370 239.488 370 255 390 255 Z" />
     </svg>
   );
 }
@@ -1021,7 +1006,7 @@ function App() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Mark size={24} />
+          <img src={avagentMark} alt="avagent" height={28} style={{ display: "block" }} />
           <span className="wordmark">avagent</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
