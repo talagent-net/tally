@@ -480,6 +480,7 @@ type SavedState = {
   view: "full" | "head";
   groundShadow: boolean;
   showGround: boolean;
+  plainBg: boolean;
   swapped: boolean;
   walkDistance: number;
   speechText: string;
@@ -509,6 +510,7 @@ function App() {
   const [showAnchor, setShowAnchor] = useState(false); // debug overlay — not persisted
   const [groundShadow, setGroundShadow] = useState(saved.groundShadow ?? false);
   const [showGround, setShowGround] = useState(saved.showGround ?? true);
+  const [plainBg, setPlainBg] = useState(saved.plainBg ?? false); // flat white stage for clean recording
   const [mode, setMode] = useState<Mode>(saved.mode && modes.includes(saved.mode) ? saved.mode : "hangout");
   const [view, setView] = useState<"full" | "head">(saved.view === "head" ? "head" : "full");
   const [overrides, setOverrides] = useState<Record<string, number>>({}); // debug — not persisted
@@ -588,6 +590,7 @@ function App() {
           view,
           groundShadow,
           showGround,
+          plainBg,
           swapped,
           walkDistance,
           speechText,
@@ -607,6 +610,7 @@ function App() {
     view,
     groundShadow,
     showGround,
+    plainBg,
     swapped,
     walkDistance,
     speechText,
@@ -671,6 +675,7 @@ function App() {
     setView("full");
     setGroundShadow(false);
     setShowGround(true);
+    setPlainBg(false);
     setSwapped(false);
     setWalkDistance(2);
     setSpeechText(DEFAULT_SPEECH);
@@ -803,6 +808,7 @@ function App() {
               <Toggle label="Head only" checked={view === "head"} onChange={(on) => setView(on ? "head" : "full")} />
               <Toggle label="Ground line" checked={showGround} onChange={setShowGround} disabled={view === "head"} />
               <Toggle label="Ground shadow" checked={groundShadow} onChange={setGroundShadow} />
+              <Toggle label="Plain background" checked={plainBg} onChange={setPlainBg} />
               <Toggle label="Anchor" checked={showAnchor} onChange={setShowAnchor} />
             </Section>
           </>
@@ -997,7 +1003,10 @@ function App() {
   );
 
   return (
-    <div className="ambient-field" style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+    <div
+      className="ambient-field"
+      style={{ display: "flex", flexDirection: "column", height: "100vh", background: plainBg ? "#ffffff" : undefined }}
+    >
       {/* Top bar: wordmark · swap · Talagent funnel CTA */}
       <header
         style={{
