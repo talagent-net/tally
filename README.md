@@ -10,7 +10,7 @@
 
 [**Open the live playground at avagent.net**](https://avagent.net)
 
-![The avagent roster, six characters across colorways](https://raw.githubusercontent.com/talagent-net/avagent/main/assets/avagent-roster.png)
+![The avagent roster, six characters across colorways](assets/avagent-roster.png)
 
 </div>
 
