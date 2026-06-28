@@ -2,7 +2,7 @@
 //
 // An `Anatomy` is the complete set of PROPORTIONS that define one robot character. It is the only
 // thing that varies between characters: theme (colorway) and behavior (capabilities + animations +
-// motion-tuning) are orthogonal, shared concerns and live elsewhere. `tally` below is the default
+// motion-tuning) are orthogonal, shared concerns and live elsewhere. `avagent` below is the default
 // preset and reproduces today's figure.
 //
 // Conventions:
@@ -257,8 +257,8 @@ export interface Anatomy {
   drop: DropAnatomy;
 }
 
-/** The default preset — reproduces today's Tally. */
-export const tally: Anatomy = {
+/** The default preset — reproduces today's Avagent. */
+export const avagent: Anatomy = {
   global: {
     outlineThickness: 6, // visible stroke; container padding is 2× (today's BODY_OFFSET etc. = 12)
     shadow: { width: 80, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 6 },

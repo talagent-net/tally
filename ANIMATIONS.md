@@ -1,6 +1,6 @@
-# Tally — Animation Architecture
+# Avagent — Animation Architecture
 
-Tally's animation system is organized in three layers. Higher layers compose from lower layers. This doc describes the model; implementation will follow.
+Avagent's animation system is organized in three layers. Higher layers compose from lower layers. This doc describes the model; implementation will follow.
 
 ## Layer 1 — Mode animations
 
@@ -23,7 +23,7 @@ Every transition interpolates smoothly. This applies to:
 
 If the consumer sets `reaction` to the value that is already playing, it's a **no-op** — the in-flight reaction plays out untouched. To fire the same reaction again after it completes, the consumer must briefly change the value (e.g., `null` → `"laugh"`) so React sees a new prop value.
 
-The component internally tracks "last played reaction value" and ignores duplicates. Managing the clear-and-refire dance is the consumer's responsibility (a wrapper around `<Tally />` is expected to handle this).
+The component internally tracks "last played reaction value" and ignores duplicates. Managing the clear-and-refire dance is the consumer's responsibility (a wrapper around `<Avagent />` is expected to handle this).
 
 ## Layer 2 — Body-part animations
 

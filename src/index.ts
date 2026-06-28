@@ -1,11 +1,11 @@
-export { Tally, defaultTheme } from "./Tally";
-export type { TallyProps, Mode, ColorTheme } from "./Tally";
+export { Avagent, defaultTheme } from "./Avagent";
+export type { AvagentProps, Mode, ColorTheme } from "./Avagent";
 export type { ActionName, ActionSpec } from "./animation/actions";
 export type { SpeechSpec, SpeechSide } from "./speech";
 export { colors } from "./colors";
 export { measureFigure } from "./measure";
 export type { FigureBox } from "./measure";
-export { tally } from "./anatomy";
+export { avagent } from "./anatomy";
 export type {
   Anatomy,
   GlobalAnatomy,

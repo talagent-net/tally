@@ -1,16 +1,16 @@
 import { useCallback, useRef } from "react";
-import type { ColorTheme } from "./Tally";
+import type { ColorTheme } from "./Avagent";
 import { useAnimationRenderer } from "./animation/context";
 
 // `say` is an OVERLAY, not a body-part action. Unlike the entries in ActionSpec it doesn't drive
 // any 0..1 capability and it doesn't occupy the (single, non-interruptible) action slot — it rides
-// on top of whatever Tally is already doing (idle look-around, cursor tracking, a gesture mid-flight)
+// on top of whatever Avagent is already doing (idle look-around, cursor tracking, a gesture mid-flight)
 // as a separate channel, then times itself out. So it gets its own prop (`speech`) and its own
-// little lifecycle in Tally, parallel to the action lifecycle, rather than a slot in createAction.
+// little lifecycle in Avagent, parallel to the action lifecycle, rather than a slot in createAction.
 
 // "auto" picks left/right at show-time from the figure's horizontal position in the viewport (it
 // opens toward the roomier side — figure on the left half of the screen → bubble opens right).
-// Tally resolves "auto" to a concrete side before rendering the bubble.
+// Avagent resolves "auto" to a concrete side before rendering the bubble.
 export type SpeechSide = "left" | "right" | "auto";
 
 // Default font stack for the bubble text. References IBM Plex Sans (the consumer app's paragraph
@@ -20,7 +20,7 @@ export const DEFAULT_FONT_FAMILY = '"IBM Plex Sans", system-ui, -apple-system, s
 
 export type SpeechSpec = {
   text: string;
-  // Which side of Tally the bubble sits on; the tail always points back toward the head. Defaults
+  // Which side of Avagent the bubble sits on; the tail always points back toward the head. Defaults
   // to "auto" (open toward the roomier side based on the figure's position in the viewport).
   side?: SpeechSide;
 };
@@ -50,7 +50,7 @@ const SPEECH_BORDER = 4;
 const SPEECH_TAIL_LEN = 14;      // how far the tail protrudes from the bubble side toward the head
 const SPEECH_TAIL_HALF = 12;     // half the tail's base height (the base is flush against the bubble side)
 
-// Head-follow: the bubble drifts slightly with head motion so it feels attached to Tally. All in
+// Head-follow: the bubble drifts slightly with head motion so it feels attached to Avagent. All in
 // unscaled px at full capability deflection (multiplied by `scale` and by the live deflection).
 // Head turn always pulls the bubble CLOSER to the head (inward), never away — with separate
 // magnitudes for the head turning toward the bubble vs away from it.
@@ -61,10 +61,10 @@ const SPEECH_FOLLOW_BOB_Y_PX = 14; // head.bob: right-bob → up, left-bob → d
 const SPEECH_FOLLOW_BOB_X_PX = 14;  // head.bob horizontal: right-bob → inward, left-bob → outward
 
 // Entrance/exit timing. The entrance uses an easeOutBack curve (overshoots past full size then
-// settles) for a springy "pop". The exit is a quick, subtle shrink-and-fade back toward Tally.
+// settles) for a springy "pop". The exit is a quick, subtle shrink-and-fade back toward Avagent.
 const SPEECH_IN_MS = 240;
 const SPEECH_OUT_MS = 160;
-// Exported so Tally knows how long to keep the bubble mounted while the exit animation plays before
+// Exported so Avagent knows how long to keep the bubble mounted while the exit animation plays before
 // it unmounts (and fires onSpeechEnd).
 export const SPEECH_EXIT_MS = SPEECH_OUT_MS;
 
@@ -81,12 +81,12 @@ export function SpeechBubble({
   maxWidth,
 }: {
   text: string;
-  side: "left" | "right"; // already resolved (Tally turns "auto" into a concrete side)
+  side: "left" | "right"; // already resolved (Avagent turns "auto" into a concrete side)
   scale: number;
-  // Enlarge the bubble's box + text independently of the figure (see TallyProps.speechScale).
+  // Enlarge the bubble's box + text independently of the figure (see AvagentProps.speechScale).
   speechScale?: number;
   theme: ColorTheme;
-  leaving?: boolean; // when true, play the exit animation (Tally unmounts after SPEECH_EXIT_MS)
+  leaving?: boolean; // when true, play the exit animation (Avagent unmounts after SPEECH_EXIT_MS)
   // Head anchor (DERIVED from rig) + authored rules — the bubble parks at the real head's side/center.
   headHalfW: number;             // (HEAD_W + HEAD_OFFSET) / 2
   headCenterAboveAnchor: number; // head vertical center above the anchor
@@ -199,7 +199,7 @@ export function SpeechBubble({
         top: s(-headCenterAboveAnchor),
         // Park the inner edge `offset` from center; the bubble grows away from the head, the tail
         // toward it. translateY(-50%) centers the bubble on the head's vertical center; the entrance
-        // grows from the tail side (origin toward the head) so it reads as coming out of Tally.
+        // grows from the tail side (origin toward the head) so it reads as coming out of Avagent.
         ...(side === "left" ? { right: offset } : { left: offset }),
         transform: "translateY(-50%)",
         transformOrigin: side === "left" ? "right center" : "left center",
@@ -226,17 +226,17 @@ export function SpeechBubble({
         userSelect: "none",
         // Springy entrance (easeOutBack overshoots then settles); subtle shrink-and-fade exit. Both
         // keep translateY(-50%) so vertical centering holds, and scale from the tail side (the
-        // bubble's transformOrigin) so it pops out of / retracts back toward Tally.
+        // bubble's transformOrigin) so it pops out of / retracts back toward Avagent.
         animation: leaving
-          ? `tally-speech-out ${SPEECH_OUT_MS}ms cubic-bezier(0.4, 0, 1, 1) forwards`
-          : `tally-speech-in ${SPEECH_IN_MS}ms cubic-bezier(0.34, 1.56, 0.64, 1) both`,
+          ? `avagent-speech-out ${SPEECH_OUT_MS}ms cubic-bezier(0.4, 0, 1, 1) forwards`
+          : `avagent-speech-in ${SPEECH_IN_MS}ms cubic-bezier(0.34, 1.56, 0.64, 1) both`,
       }}
     >
-      <style>{`@keyframes tally-speech-in {
+      <style>{`@keyframes avagent-speech-in {
         from { opacity: 0; transform: translateY(-50%) scale(0.4); }
         to { opacity: 1; transform: translateY(-50%) scale(1); }
       }
-      @keyframes tally-speech-out {
+      @keyframes avagent-speech-out {
         from { opacity: 1; transform: translateY(-50%) scale(1); }
         to { opacity: 0; transform: translateY(-50%) scale(0.6); }
       }`}</style>

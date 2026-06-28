@@ -6,7 +6,7 @@ import { createCyclicAnimation, type CyclicDirection } from "./cyclic";
 // NEUTRAL forever, landing on a sin=0 boundary for a clean handoff.
 //
 // Note head.tilt's input range is remapped to a narrower rendered range at read time
-// (remapTilt in Tally), so this amplitude lands softer on screen than the raw number suggests.
+// (remapTilt in Avagent), so this amplitude lands softer on screen than the raw number suggests.
 
 const NEUTRAL = 0.5;
 const AMPLITUDE = 0.18;             // ±0.18 from neutral in input space — a decisive nod

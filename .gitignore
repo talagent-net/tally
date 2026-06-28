@@ -1,2 +1,5 @@
 node_modules/
 dist/
+
+# internal working docs (never ship)
+RELEASE_PLAN.md

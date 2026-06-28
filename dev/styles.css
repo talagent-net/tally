@@ -1,0 +1,257 @@
+@import "tailwindcss";
+
+/* ── Talagent 1.0 design tokens (ported; playground-only) ───────────────────── */
+@theme {
+  --color-brand: #37ac4a;
+  --color-brand-strong: #1e7d3a;
+  --color-brand-soft: #e2f5d8;
+  --color-brand-bright: #6fd757;
+  --color-online: #0284c7;
+  --color-online-soft: #e0f2fe;
+  --color-pending: #ff6a00;
+  --color-error: #dc2626;
+  --color-canvas: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f3f5;
+  --color-ink: #1a1d21;
+  --color-ink-muted: #5b636e;
+  --color-ink-subtle: #99a0ab;
+  --color-line: #e6e8eb;
+  --color-line-2: #d7dbe0;
+
+  --radius-control: 5px;
+  --radius-card: 6px;
+  --radius-feature: 9px;
+
+  --font-display: "Oxanium", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --shadow-float-ctl: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(17, 24, 39, 0.04),
+    0 10px 22px rgba(17, 24, 39, 0.07);
+  --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 8px rgba(17, 24, 39, 0.05),
+    0 22px 48px rgba(17, 24, 39, 0.11);
+}
+
+@layer base {
+  body {
+    margin: 0;
+    font-family: var(--font-body);
+    color: var(--color-ink);
+    background: var(--color-canvas);
+  }
+  input[type="range"] {
+    accent-color: var(--color-brand);
+  }
+  input[type="checkbox"] {
+    accent-color: var(--color-brand);
+  }
+}
+
+/* ── Ambient field (the avatar stage backdrop) ─────────────────────────────── */
+.ambient-field {
+  background:
+    radial-gradient(80% 60% at 85% 100%, rgba(55, 172, 79, 0.07), transparent 70%),
+    radial-gradient(70% 60% at 15% 0%, rgba(2, 132, 199, 0.06), transparent 70%),
+    var(--color-canvas);
+}
+
+/* ── Surfaces ──────────────────────────────────────────────────────────────── */
+.card {
+  background: linear-gradient(180deg, #ffffff, #fafbfd);
+  border-radius: var(--radius-feature);
+  box-shadow: var(--shadow-float);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+.tbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1;
+  height: 36px;
+  padding: 0 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 120ms cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 120ms,
+    background 120ms, color 120ms;
+}
+.tbtn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.tbtn:active {
+  transform: translateY(2px) scale(0.99);
+  transition-duration: 90ms;
+}
+.tbtn-ghost {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-float-ctl);
+}
+.tbtn-ghost:hover {
+  transform: translateY(-1px);
+  color: var(--color-brand-strong);
+  box-shadow: var(--shadow-float-ctl), inset 0 0 0 1px var(--color-brand-soft);
+}
+.tbtn-primary {
+  background: var(--color-ink);
+  color: #fff;
+  box-shadow: var(--shadow-float-ctl);
+}
+.tbtn-primary:hover {
+  transform: translateY(-1px);
+}
+.tbtn-accent {
+  background: var(--color-brand);
+  color: #fff;
+  box-shadow: var(--shadow-float-ctl), 0 10px 24px rgba(55, 172, 79, 0.22);
+}
+.tbtn-accent:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-float-ctl), 0 14px 30px rgba(55, 172, 79, 0.3);
+}
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+/* ── Inputs / selects ──────────────────────────────────────────────────────── */
+.tinput,
+.tselect {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: 0;
+  border-radius: var(--radius-control);
+  padding: 8px 10px;
+  box-shadow: var(--shadow-float-ctl);
+  transition: box-shadow 180ms cubic-bezier(0.2, 0.7, 0.2, 1), transform 180ms;
+}
+.tinput:focus,
+.tselect:focus {
+  outline: none;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-float-ctl), inset 0 0 0 1px var(--color-brand),
+    0 0 0 3px var(--color-brand-soft);
+}
+.tselect {
+  appearance: none;
+  cursor: pointer;
+  height: 36px;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2399A0AB' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+}
+.tinput-sm {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Labels ────────────────────────────────────────────────────────────────── */
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  margin-bottom: 5px;
+}
+.section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+}
+
+/* ── Segmented tabs ────────────────────────────────────────────────────────── */
+.seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--color-surface-2);
+  border-radius: var(--radius-control);
+}
+.seg-tab {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.seg-tab:hover {
+  color: var(--color-ink);
+}
+.seg-tab[data-active="true"] {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+}
+
+/* ── Switch / toggle ───────────────────────────────────────────────────────── */
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--color-surface-2);
+  box-shadow: inset 0 1px 3px rgba(17, 24, 39, 0.12);
+  transition: background 120ms;
+}
+.switch[data-on="true"] {
+  background: var(--color-brand);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 6px 14px rgba(55, 172, 79, 0.28);
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.3);
+  transition: transform 130ms cubic-bezier(0.4, 0, 0.1, 1);
+}
+.switch[data-on="true"]::after {
+  transform: translateX(20px);
+}
+.switch:disabled {
+  cursor: not-allowed;
+}
+
+/* ── Brand mark ────────────────────────────────────────────────────────────── */
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-size: 18px;
+  color: var(--color-ink);
+}
+.mono {
+  font-family: var(--font-mono);
+}

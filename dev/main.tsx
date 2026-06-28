@@ -1,10 +1,12 @@
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode, ButtonHTMLAttributes, RefObject } from "react";
 import { createRoot } from "react-dom/client";
-import { Tally, tally, measureFigure } from "../src";
+import { Avagent, avagent, measureFigure } from "../src";
 import type { ColorTheme, Mode, ActionSpec, SpeechSpec, SpeechSide, Anatomy } from "../src";
 import openclaw from "./openclaw.png";
 import claudecode from "./claudecode.png";
 import codex from "./codex.png";
+import "./styles.css";
 
 // Single logo PNG, rendered light-tinted on top of the solid chest panel.
 const logos: Record<string, string> = {
@@ -60,21 +62,21 @@ const themes: Record<string, ColorTheme> = {
   },
 };
 
-// A few demo character presets — each is just an override of `tally` (proportions only; theme and
-// behavior are independent). Tally is the default. NOTE: attachment/grounding for EXTREME proportions
+// A few demo character presets — each is just an override of `avagent` (proportions only; theme and
+// behavior are independent). Avagent is the default. NOTE: attachment/grounding for EXTREME proportions
 // isn't finalized yet (HEAD_TOP, leg hipTuck, BODY_BOTTOM are still literal), so very long/short legs
 // may not sit perfectly on the ground line — that's the next phase. Moderate variation looks right.
 const characters: Record<string, Anatomy> = {
-  Tally: tally,
+  Avagent: avagent,
   Stilt: {
-    ...tally,
+    ...avagent,
     global: {
-      ...tally.global, shadow: { width: 56, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 8 },
+      ...avagent.global, shadow: { width: 56, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 8 },
     },
-    body: { ...tally.body, width: 36, height: 84 },
-    head: { ...tally.head, width: 56, height: 80, bodyOverlap: 11, roundness: 16, turnDepthRatio: 1.08, tiltDepthRatio: .96, tiltRadiusGrow: 1.5 },
+    body: { ...avagent.body, width: 36, height: 84 },
+    head: { ...avagent.head, width: 56, height: 80, bodyOverlap: 11, roundness: 16, turnDepthRatio: 1.08, tiltDepthRatio: .96, tiltRadiusGrow: 1.5 },
     eye: {
-      ...tally.eye, width: 20, height: 20, roundnessRatio: .3,
+      ...avagent.eye, width: 20, height: 20, roundnessRatio: .3,
       topRatio: 0.45,
       sideRatio: 0.22,
       pupilInset: 5,
@@ -84,124 +86,80 @@ const characters: Record<string, Anatomy> = {
       turnCloserInset: -.1,
       turnFurtherInset: .75,
     },
-    ear: { ...tally.ear, heightRatio: 0.2 },
-    antenna: { ...tally.antenna, height: 28, signalScale: 2 },
-    arm: { ...tally.arm, upperWidth: 20, lowerWidth: 20, upperHeight: 52, lowerHeight: 46, upperAngle: 15, lowerAngle: -10 },
-    leg: { ...tally.leg, legWidth: 20, legHeight: 64, footWidth: 24, footHeight: 20, legAngle: 3, footAngle: -3 },
+    ear: { ...avagent.ear, heightRatio: 0.2 },
+    antenna: { ...avagent.antenna, height: 28, signalScale: 2 },
+    arm: { ...avagent.arm, upperWidth: 20, lowerWidth: 20, upperHeight: 52, lowerHeight: 46, upperAngle: 15, lowerAngle: -10 },
+    leg: { ...avagent.leg, legWidth: 20, legHeight: 64, footWidth: 24, footHeight: 20, legAngle: 3, footAngle: -3 },
     // tall + lanky: smaller, slower strides; a reserved upper body (narrow arm swing); long legs
     // that glide further across the ground per walk; a low, gliding bounce but a pronounced lean
     // into the travel direction (the long frame tips forward).
-    gait: { ...tally.gait, strideDeg: 20, armSwingDeg: 14, bounceHeightRatio: .12, leanDeg: 7, walkMsPerBodyWidth: 480, travelPerBodyWidth: 3.4, walkDropOffset: 2 },
-    jump: { ...tally.jump, heightBodyWidths: 6, flailSpeed: 1.0 },
-    drop: { ...tally.drop, flailSpeed: 1.5 }
+    gait: { ...avagent.gait, strideDeg: 20, armSwingDeg: 14, bounceHeightRatio: .12, leanDeg: 7, walkMsPerBodyWidth: 480, travelPerBodyWidth: 3.4, walkDropOffset: 2 },
+    jump: { ...avagent.jump, heightBodyWidths: 6, flailSpeed: 1.0 },
+    drop: { ...avagent.drop, flailSpeed: 1.5 }
   },
+  // Finalized anatomy (full export). Broad-bodied tall robot: small head with oversized round eyes
+  // and a stubby antenna; a slow, bouncy, low-hop gait.
   Scratch: {
-    ...tally,
-    // broad-bodied tall robot: small head with oversized round eyes + stubby antenna; a slow,
-    // bouncy, low-hop gait.
-    body: {
-      ...tally.body,
-      width: 74,
-      height: 74,
-      chest: { ...tally.body.chest, turnSlideRatio: 0.35 },
-    },
-    head: { ...tally.head, width: 72, height: 78, turnDepthRatio: 1, turnRadiusGrow: 1.1 },
-    antenna: { ...tally.antenna, width: 12, height: 32, radius: 4, restLean: -25, signalScale: 2.5 },
-    eye: {
-      ...tally.eye,
-      width: 42,
-      height: 42,
-      roundnessRatio: 0.2,
-      topRatio: 0.35,
-      sideRatio: -0.04,
-      pupilInset: 0,
-      turnCloserInset: -26.8 / 120,
-      turnWidthRatio: 0.6,
-      tiltHeightRatio: 0.8,
-    },
-    ear: { ...tally.ear, topRatio: 0.4, heightRatio: 0.44 },
-    arm: { ...tally.arm, upperWidth: 32, upperHeight: 54, lowerWidth: 28, lowerHeight: 44, shoulderRatio: 0.1 },
-    leg: {
-      ...tally.leg,
-      legWidth: 32,
-      legHeight: 54,
-      footWidth: 36,
-      footHeight: 28,
-      legAngle: 7,
-      footAngle: -7,
-      hipInsetRatio: 0.1,
-    },
-    gait: { ...tally.gait, strideDeg: 32, bounceHeightRatio: 0.2, leanDeg: 4, walkDropOffset: 2, walkMsPerBodyWidth: 440, travelPerBodyWidth: 1.6 },
-    jump: { ...tally.jump, heightBodyWidths: 2, flailSpeed: 0.6 },
+    global: { outlineThickness: 6, shadow: { width: 80, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 6 } },
+    body: { width: 74, height: 74, radiusTop: 32, radiusBottom: 24, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.6 }, turnDepthRatio: 0.84, chest: { size: 32, topRatio: 0.25, turnMinRatio: 0.15, crouchMinRatio: 0.6, turnSlideRatio: 0.35, crouchRise: 0.015625, haloOffset: 1, haloBlur: 0 } },
+    head: { width: 72, height: 78, roundness: 20, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.85 }, turnDepthRatio: 1, tiltDepthRatio: 0.92, turnRadiusGrow: 1.1, tiltRadiusGrow: 1.25, shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 }, bodyOverlap: 17 },
+    antenna: { width: 12, height: 32, radius: 4, restLean: -25, pivot: { xFrac: 0.5, yFrac: 1 }, baseInset: 10, rightRatio: 0.15, tiltHeightRatio: 0.5, signalScale: 2.5 },
+    eye: { width: 42, height: 42, roundnessRatio: 0.2, pivot: { xFrac: 0.5, yFrac: 0.5 }, topRatio: 0.35, sideRatio: -0.04, turnCloserInset: -0.22333333333333333, turnFurtherInset: 0.6566666666666666, pupilInset: 0, turnWidthRatio: 0.6, tiltHeightRatio: 0.8, tiltPerspectivePower: 3 },
+    ear: { topRatio: 0.4, heightRatio: 0.44, roundnessRatio: 0.4 },
+    arm: { upperWidth: 28, upperHeight: 54, lowerWidth: 28, lowerHeight: 44, upperAngle: 25, lowerAngle: -15, shoulderRatio: 0.1 },
+    leg: { legWidth: 28, legHeight: 54, footWidth: 36, footHeight: 28, legAngle: 4, footAngle: -4, hipInsetRatio: 0.13, hipTuckRatio: 0.40625 },
+    speech: { gap: 19, maxWidth: 192 },
+    gait: { strideDeg: 32, armSwingDeg: 22, bounceHeightRatio: 0.2, leanDeg: 4, walkDropOffset: 2, walkMsPerBodyWidth: 440, travelPerBodyWidth: 1.6 },
+    jump: { heightBodyWidths: 2, flailSpeed: 0.6 },
+    drop: { flailSpeed: 2.5 },
   },
+  // Finalized anatomy (full export). Legless floater: zero leg/foot width, no walk bounce or arm
+  // swing, a soft low shadow, a slim body and a quick glide.
   Float: {
-    ...tally,
-    // legless floater: zero leg/foot width (nothing renders below), no walk bounce or arm swing,
-    // a soft low shadow, a slim narrow body and a quick glide.
-    global: { ...tally.global, shadow: { ...tally.global.shadow, width: 56, height: 12, blur: 3, fadeOutBodyWidths: 4 } },
-    body: { ...tally.body, width: 42, height: 72, radiusTop: 12 },
-    head: { ...tally.head, width: 96, roundness: 32, turnDepthRatio: 0.88, turnRadiusGrow: 1.1 },
-    antenna: { ...tally.antenna, width: 7, radius: 2, restLean: -5 },
-    eye: { ...tally.eye, width: 20, height: 22, roundnessRatio: 0.5, pivot: { ...tally.eye.pivot, xFrac: 0.44 }, topRatio: 0.44, sideRatio: 0.16, turnCloserInset: 0.12, turnFurtherInset: 0.6, pupilInset: 6, turnWidthRatio: 0.44 },
-    ear: { ...tally.ear, topRatio: 0.45, heightRatio: 0.3, roundnessRatio: 0.25 },
-    arm: { ...tally.arm, upperWidth: 22, lowerWidth: 20, upperAngle: 15, lowerAngle: -5, shoulderRatio: 0.05 },
-    leg: { ...tally.leg, legWidth: 0, legHeight: 44, footWidth: 0 },
-    gait: { ...tally.gait, armSwingDeg: 0, bounceHeightRatio: 0, walkMsPerBodyWidth: 160 },
-    jump: { ...tally.jump, heightBodyWidths: 6, flailSpeed: 0.1 },
+    global: { outlineThickness: 6, shadow: { width: 56, height: 12, blur: 3, opacity: 0.24, fadeOutBodyWidths: 4 } },
+    body: { width: 42, height: 72, radiusTop: 12, radiusBottom: 21, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.6 }, turnDepthRatio: 0.84, chest: { size: 32, topRatio: 0.25, turnMinRatio: 0.15, crouchMinRatio: 0.6, turnSlideRatio: 0.3076923076923077, crouchRise: 0.015625, haloOffset: 1, haloBlur: 0 } },
+    head: { width: 96, height: 90, roundness: 32, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.85 }, turnDepthRatio: 0.88, tiltDepthRatio: 0.92, turnRadiusGrow: 1.1, tiltRadiusGrow: 1.25, shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 }, bodyOverlap: 17 },
+    antenna: { width: 7, height: 38, radius: 2, restLean: -5, pivot: { xFrac: 0.5, yFrac: 1 }, baseInset: 10, rightRatio: 0.15, tiltHeightRatio: 0.5, signalScale: 1 },
+    eye: { width: 41, height: 17, roundnessRatio: 0.5, pivot: { xFrac: 0.44, yFrac: 0.5 }, topRatio: 0.44, sideRatio: 0.16, turnCloserInset: 0.12, turnFurtherInset: 0.6, pupilInset: 5, turnWidthRatio: 0.44, tiltHeightRatio: 0.7, tiltPerspectivePower: 3 },
+    ear: { topRatio: 0.45, heightRatio: 0.3, roundnessRatio: 0.25 },
+    arm: { upperWidth: 22, upperHeight: 48, lowerWidth: 20, lowerHeight: 40, upperAngle: 15, lowerAngle: -5, shoulderRatio: 0.05 },
+    leg: { legWidth: 0, legHeight: 44, footWidth: 0, footHeight: 24, legAngle: 9, footAngle: -9, hipInsetRatio: 0, hipTuckRatio: 0.40625 },
+    speech: { gap: 19, maxWidth: 192 },
+    gait: { strideDeg: 40, armSwingDeg: 0, bounceHeightRatio: 0, leanDeg: 7, walkDropOffset: 0, walkMsPerBodyWidth: 160, travelPerBodyWidth: 2.2 },
+    jump: { heightBodyWidths: 6, flailSpeed: 0.1 },
+    drop: { flailSpeed: 2.5 },
   },
+  // Finalized anatomy (full export). Tall + slim, wide flat head with thin slot eyes; long springy
+  // legs, fast skittery glide.
   Glitch: {
-    ...tally,
-    // tall + slim with a wide flat head and thin slot eyes; long springy legs, fast skittery glide.
-    global: { ...tally.global, shadow: { ...tally.global.shadow, width: 56, fadeOutBodyWidths: 8 } },
-    body: { ...tally.body, width: 32, height: 72, radiusTop: 24, radiusBottom: 4 },
-    head: { ...tally.head, width: 116, height: 48, roundness: 24, turnDepthRatio: 0.64, tiltDepthRatio: 0.96, tiltRadiusGrow: 1.5, bodyOverlap: 11 },
-    antenna: { ...tally.antenna, width: 8, height: 36, signalScale: 2 },
-    eye: { ...tally.eye, width: 36, height: 14, roundnessRatio: 0.1, topRatio: 0.45, sideRatio: 0.22, turnCloserInset: 0.1, turnFurtherInset: 0.6, pupilInset: 5, tiltHeightRatio: 0.4, tiltPerspectivePower: 1.5 },
-    ear: { ...tally.ear, roundnessRatio: 0.3 },
-    arm: { ...tally.arm, upperWidth: 18, upperHeight: 54, lowerWidth: 18, lowerHeight: 44, upperAngle: 15, lowerAngle: -10, shoulderRatio: 0.05 },
-    leg: { ...tally.leg, legWidth: 18, legHeight: 64, footWidth: 24, footHeight: 16, legAngle: 3, footAngle: -3, hipInsetRatio: 0.1 },
-    gait: { ...tally.gait, strideDeg: 30, armSwingDeg: 24, bounceHeightRatio: 0.2, walkDropOffset: 2, walkMsPerBodyWidth: 480, travelPerBodyWidth: 3.9 },
-    jump: { ...tally.jump, heightBodyWidths: 4.5, flailSpeed: 0.4 },
-    drop: { ...tally.drop, flailSpeed: 1.5 },
+    global: { outlineThickness: 6, shadow: { width: 56, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 8 } },
+    body: { width: 32, height: 72, radiusTop: 24, radiusBottom: 4, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.6 }, turnDepthRatio: 0.84, chest: { size: 32, topRatio: 0.25, turnMinRatio: 0.15, crouchMinRatio: 0.6, turnSlideRatio: 0.3076923076923077, crouchRise: 0.015625, haloOffset: 1, haloBlur: 0 } },
+    head: { width: 90, height: 48, roundness: 24, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.85 }, turnDepthRatio: 0.64, tiltDepthRatio: 0.96, turnRadiusGrow: 1.4, tiltRadiusGrow: 1.5, shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 }, bodyOverlap: 11 },
+    antenna: { width: 8, height: 36, radius: 3, restLean: -15, pivot: { xFrac: 0.5, yFrac: 1 }, baseInset: 10, rightRatio: 0.15, tiltHeightRatio: 0.5, signalScale: 2 },
+    eye: { width: 36, height: 14, roundnessRatio: 0.1, pivot: { xFrac: 0.5, yFrac: 0.5 }, topRatio: 0.45, sideRatio: 0.12, turnCloserInset: 0.1, turnFurtherInset: 0.6, pupilInset: 5, turnWidthRatio: 0.24, tiltHeightRatio: 0.4, tiltPerspectivePower: 1.5 },
+    ear: { topRatio: 0.42, heightRatio: 0.4, roundnessRatio: 0.3 },
+    arm: { upperWidth: 18, upperHeight: 54, lowerWidth: 18, lowerHeight: 44, upperAngle: 15, lowerAngle: -10, shoulderRatio: 0.05 },
+    leg: { legWidth: 18, legHeight: 64, footWidth: 24, footHeight: 16, legAngle: 3, footAngle: -3, hipInsetRatio: 0.1, hipTuckRatio: 0.40625 },
+    speech: { gap: 19, maxWidth: 192 },
+    gait: { strideDeg: 30, armSwingDeg: 24, bounceHeightRatio: 0.2, leanDeg: 7, walkDropOffset: 2, walkMsPerBodyWidth: 480, travelPerBodyWidth: 3.9 },
+    jump: { heightBodyWidths: 4.5, flailSpeed: 0.4 },
+    drop: { flailSpeed: 1.5 },
   },
+  // Finalized anatomy (full export). Big boxy near-square head, oversized eyes, long thin antenna;
+  // slow, bouncy, low-hop gait.
   Loop: {
-    ...tally,
-    // broad-bodied like Scratch, but with a big, boxy near-square head (low roundness), oversized
-    // eyes and a long thin antenna; slow, bouncy, low-hop gait.
-    body: {
-      ...tally.body,
-      width: 74,
-      height: 74,
-      chest: { ...tally.body.chest, turnSlideRatio: 0.35 },
-    },
-    head: { ...tally.head, width: 96, height: 103, roundness: 12, turnDepthRatio: 1 },
-    antenna: { ...tally.antenna, width: 8, height: 44, radius: 4, restLean: -25, signalScale: 2.5 },
-    eye: {
-      ...tally.eye,
-      width: 48,
-      height: 44,
-      roundnessRatio: 0.2,
-      topRatio: 0.45,
-      sideRatio: 0.04,
-      turnCloserInset: -26.8 / 120,
-      pupilInset: 18,
-      turnWidthRatio: 0.6,
-      tiltHeightRatio: 0.8,
-    },
-    ear: { ...tally.ear, topRatio: 0.4, heightRatio: 0.34 },
-    arm: { ...tally.arm, upperWidth: 32, upperHeight: 54, lowerWidth: 28, lowerHeight: 44, shoulderRatio: 0.1 },
-    leg: {
-      ...tally.leg,
-      legWidth: 32,
-      legHeight: 54,
-      footWidth: 36,
-      footHeight: 28,
-      legAngle: 7,
-      footAngle: -7,
-      hipInsetRatio: 0.1,
-    },
-    gait: { ...tally.gait, strideDeg: 32, bounceHeightRatio: 0.2, leanDeg: 4, walkDropOffset: 2, walkMsPerBodyWidth: 440, travelPerBodyWidth: 1.6 },
-    jump: { ...tally.jump, heightBodyWidths: 2, flailSpeed: 0.6 },
+    global: { outlineThickness: 6, shadow: { width: 80, height: 16, blur: 5, opacity: 0.24, fadeOutBodyWidths: 6 } },
+    body: { width: 40, height: 55, radiusTop: 12, radiusBottom: 12, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.6 }, turnDepthRatio: 0.84, chest: { size: 32, topRatio: 0.25, turnMinRatio: 0.15, crouchMinRatio: 0.6, turnSlideRatio: 0.35, crouchRise: 0.015625, haloOffset: 1, haloBlur: 0 } },
+    head: { width: 96, height: 103, roundness: 12, restRotation: 0, pivot: { xFrac: 0.5, yFrac: 0.85 }, turnDepthRatio: 1, tiltDepthRatio: 0.92, turnRadiusGrow: 1.4, tiltRadiusGrow: 1.25, shading: { highlightRatio: 0.5, shadowCrescentRatio: 0.5 }, bodyOverlap: 17 },
+    antenna: { width: 8, height: 44, radius: 4, restLean: -25, pivot: { xFrac: 0.5, yFrac: 1 }, baseInset: 10, rightRatio: 0.15, tiltHeightRatio: 0.5, signalScale: 2.5 },
+    eye: { width: 48, height: 44, roundnessRatio: 0.2, pivot: { xFrac: 0.5, yFrac: 0.5 }, topRatio: 0.45, sideRatio: 0.04, turnCloserInset: -0.22333333333333333, turnFurtherInset: 0.6566666666666666, pupilInset: 18, turnWidthRatio: 0.6, tiltHeightRatio: 0.8, tiltPerspectivePower: 3 },
+    ear: { topRatio: 0.4, heightRatio: 0.34, roundnessRatio: 0.4 },
+    arm: { upperWidth: 20, upperHeight: 54, lowerWidth: 20, lowerHeight: 44, upperAngle: 10, lowerAngle: -5, shoulderRatio: 0.1 },
+    leg: { legWidth: 20, legHeight: 64, footWidth: 28, footHeight: 22, legAngle: 2, footAngle: -2, hipInsetRatio: -0.01, hipTuckRatio: 0.40625 },
+    speech: { gap: 19, maxWidth: 192 },
+    gait: { strideDeg: 32, armSwingDeg: 22, bounceHeightRatio: 0.2, leanDeg: 4, walkDropOffset: 2, walkMsPerBodyWidth: 360, travelPerBodyWidth: 2.6 },
+    jump: { heightBodyWidths: 4, flailSpeed: 1.6 },
+    drop: { flailSpeed: 2.5 },
   },
 };
 
@@ -233,10 +191,121 @@ const debugCapabilities: { key: string; rest: number }[] = [
   { key: "arms.right.wave", rest: 0.5 },
   { key: "antenna.wiggle", rest: 0.5 },
 ];
+// Capabilities grouped by their first path segment (eyes / head / body / arms / …), so the dense
+// override panel reads as labeled clusters instead of one long list.
+const debugGroups: Record<string, { key: string; rest: number; sub: string }[]> = (() => {
+  const groups: Record<string, { key: string; rest: number; sub: string }[]> = {};
+  for (const cap of debugCapabilities) {
+    const [head, ...rest] = cap.key.split(".");
+    (groups[head] ||= []).push({ ...cap, sub: rest.join(".") });
+  }
+  return groups;
+})();
 // Gesture actions fire with a fixed spec; walk takes direction + distance (body-widths).
 const gestures: ActionSpec[] = [{ name: "disagree" }, { name: "agree" }, { name: "disagreeShort" }, { name: "agreeShort" }, { name: "greet" }, { name: "shrug" }, { name: "hangHead" }];
 
 const GROUND_Y = 480; // px from the demo pane's top to the figure's anchor — i.e. the ground line.
+const DEFAULT_SPEECH = "Hi, I'm Avagent. Agent and avatar built by Talagent.";
+
+// ── Small presentational primitives (Talagent design language) ─────────────────────────────────
+// Talagent agent-head mark (§10) — recolours via currentColor; eyes are true cut-outs.
+function Mark({ size = 24 }: { size?: number }) {
+  return (
+    <svg viewBox="160 60 330 295" height={size} fill="currentColor" role="img" aria-label="talagent" style={{ display: "block", color: "var(--color-brand)" }}>
+      <path d="M 190 105 C 190 81.964 214.531 60 240 60 L 410 60 C 434.514 60 460 81.413 460 105 L 460 150 C 480.847 150 490 150 490 180 L 490 225 C 490 255 480.397 255 460 255 C 460 276.857 434.207 300 410 300 L 300 300 L 240 355 L 240 300 C 215.606 300 190 277.768 190 255 C 167.78 255 160 255 160 225 L 160 180 C 160 150 169.986 150 190 150 L 190 105 Z M 260 255 C 280 255 280 235.444 280 215 C 280 197.864 280 180 260 180 C 240 180 240 198.714 240 215 C 240 236.074 240 255 260 255 Z M 390 255 C 410 255 410 239.847 410 215 C 410 197.588 410 180 390 180 C 370 180 370 197.835 370 215 C 370 239.488 370 255 390 255 Z" />
+    </svg>
+  );
+}
+
+function Btn({
+  variant = "ghost",
+  className = "",
+  ...props
+}: { variant?: "ghost" | "primary" | "accent" } & ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button type="button" className={`tbtn tbtn-${variant} ${className}`} {...props} />;
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <span className="section-label">{title}</span>
+      {children}
+    </div>
+  );
+}
+
+function Divider() {
+  return <div style={{ height: 1, background: "var(--color-line)" }} />;
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <label style={{ display: "block", width: "100%" }}>
+      <span className="field-label">{label}</span>
+      <select className="tselect" value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function Toggle({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", opacity: disabled ? 0.45 : 1 }}>
+      <span style={{ fontSize: 13, color: "var(--color-ink)" }}>{label}</span>
+      <button
+        type="button"
+        className="switch"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        data-on={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+      />
+    </div>
+  );
+}
+
+function Slider({
+  label,
+  min,
+  max,
+  step,
+  value,
+  onChange,
+  format,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange: (v: number) => void;
+  format: (v: number) => string;
+}) {
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+        <span className="field-label" style={{ margin: 0 }}>{label}</span>
+        <span className="mono" style={{ fontSize: 12, color: "var(--color-ink-muted)", fontVariantNumeric: "tabular-nums" }}>{format(value)}</span>
+      </div>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ width: "100%" }} />
+    </div>
+  );
+}
 
 // ---- Anatomy editor ----------------------------------------------------------------------------
 // The editor is built by WALKING the anatomy object, so it needs no hand-maintained field list and
@@ -276,61 +345,26 @@ function AnatomyEditor({
   copied: boolean;
 }) {
   return (
-    <div
-      style={{
-        width: 340,
-        flexShrink: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-        padding: 20,
-        borderLeft: "1px solid #e2e2e2",
-        background: "#fafafa",
-        overflowY: "auto",
-        boxSizing: "border-box",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          position: "sticky",
-          top: -20,
-          background: "#fafafa",
-          padding: "16px 0 8px",
-          marginTop: -16,
-          borderBottom: "1px solid #eee",
-          zIndex: 1,
-        }}
-      >
-        <span style={{ fontSize: 15, fontWeight: 600, color: "#444" }}>Anatomy</span>
+    <>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <span className="section-label">Anatomy</span>
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" onClick={onReset} style={{ padding: "4px 10px", fontSize: 13, cursor: "pointer" }}>
-            Reset
-          </button>
-          <button type="button" onClick={onExport} style={{ padding: "4px 10px", fontSize: 13, cursor: "pointer", minWidth: 64 }}>
-            {copied ? "Copied!" : "Export"}
-          </button>
+          <Btn variant="ghost" onClick={onReset}>Reset</Btn>
+          <Btn variant="accent" onClick={onExport} style={{ minWidth: 78 }}>{copied ? "Copied!" : "Export"}</Btn>
         </div>
       </div>
       {Object.entries(anatomy).map(([part, partObj]) => (
-        <div key={part} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#999", textTransform: "uppercase", letterSpacing: 0.6 }}>
-            {part}
-          </span>
+        <div key={part} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span className="section-label">{part}</span>
           {numericLeaves(partObj as Record<string, unknown>).map(({ path, value }) => {
             const fullPath = [part, ...path];
             const k = fullPath.join(".");
             const step = Math.abs(value) < 2 ? 0.01 : 1; // ratios/angles scrub finely; px in whole steps
             return (
-              <label
-                key={k}
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12, color: "#666" }}
-              >
-                <span style={{ fontFamily: "monospace" }}>{path.join(".")}</span>
+              <label key={k} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <span className="mono" style={{ fontSize: 12, color: "var(--color-ink-muted)" }}>{path.join(".")}</span>
                 <input
+                  className="tinput-sm"
                   type="number"
                   value={value}
                   step={step}
@@ -338,14 +372,14 @@ function AnatomyEditor({
                     const n = Number(e.target.value);
                     if (e.target.value !== "" && !Number.isNaN(n)) onChange(fullPath, n);
                   }}
-                  style={{ width: 92, padding: "3px 6px", fontSize: 12, fontVariantNumeric: "tabular-nums" }}
+                  style={{ width: 92 }}
                 />
               </label>
             );
           })}
         </div>
       ))}
-    </div>
+    </>
   );
 }
 
@@ -360,7 +394,7 @@ function BBoxOverlay({
   scale,
   anatomy,
 }: {
-  wrapRef: React.RefObject<HTMLDivElement | null>;
+  wrapRef: RefObject<HTMLDivElement | null>;
   scale: number;
   anatomy: Anatomy;
 }) {
@@ -377,7 +411,7 @@ function BBoxOverlay({
           minX = Math.min(minX, r.left); minY = Math.min(minY, r.top);
           maxX = Math.max(maxX, r.right); maxY = Math.max(maxY, r.bottom);
         }
-        for (const el of wrap.querySelectorAll<HTMLElement>("[data-tally-foot]")) {
+        for (const el of wrap.querySelectorAll<HTMLElement>("[data-avagent-foot]")) {
           feetY = Math.max(feetY, el.getBoundingClientRect().bottom);
         }
         if (Number.isFinite(minX)) {
@@ -409,27 +443,68 @@ function BBoxOverlay({
   );
 }
 
+type TabId = "general" | "actions" | "debug" | "anatomy";
+const TABS: { id: TabId; label: string }[] = [
+  { id: "general", label: "General" },
+  { id: "actions", label: "Actions" },
+  { id: "debug", label: "Debug" },
+  { id: "anatomy", label: "Anatomy" },
+];
+
+// ── Persistence ──────────────────────────────────────────────────────────────────────────────────
+// A curated subset of settings survives reloads (per-browser). Transient/debug state — overrides,
+// anatomy draft, fired action/speech, the anchor + bbox overlays — is intentionally excluded so a
+// reload never lands in a broken-looking pose. First-time visitors always get the curated default.
+const STORAGE_KEY = "avagent.playground.v1";
+type SavedState = {
+  characterName: string;
+  themeName: string;
+  scale: number;
+  logoName: string;
+  mode: Mode;
+  view: "full" | "head";
+  groundShadow: boolean;
+  showGround: boolean;
+  swapped: boolean;
+  walkDistance: number;
+  speechText: string;
+  speechSide: SpeechSide;
+  tab: TabId;
+};
+function loadSaved(): Partial<SavedState> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Partial<SavedState>) : {};
+  } catch {
+    return {};
+  }
+}
+
 function App() {
-  const [themeName, setThemeName] = useState("default");
-  const [characterName, setCharacterName] = useState("Scratch");
-  const [scale, setScale] = useState(1);
-  const [showAnchor, setShowAnchor] = useState(false);
-  const [groundShadow, setGroundShadow] = useState(false);
-  const [mode, setMode] = useState<Mode>("hangout");
-  const [view, setView] = useState<"full" | "head">("full");
-  const [overrides, setOverrides] = useState<Record<string, number>>({});
-  const [logoName, setLogoName] = useState<string>("openclaw");
+  const saved = useMemo(loadSaved, []);
+  const [themeName, setThemeName] = useState(saved.themeName && saved.themeName in themes ? saved.themeName : "default");
+  const [characterName, setCharacterName] = useState(saved.characterName && saved.characterName in characters ? saved.characterName : "Avagent");
+  const [scale, setScale] = useState(typeof saved.scale === "number" ? saved.scale : 1);
+  const [showAnchor, setShowAnchor] = useState(false); // debug overlay — not persisted
+  const [groundShadow, setGroundShadow] = useState(saved.groundShadow ?? false);
+  const [showGround, setShowGround] = useState(saved.showGround ?? true);
+  const [mode, setMode] = useState<Mode>(saved.mode && modes.includes(saved.mode) ? saved.mode : "hangout");
+  const [view, setView] = useState<"full" | "head">(saved.view === "head" ? "head" : "full");
+  const [overrides, setOverrides] = useState<Record<string, number>>({}); // debug — not persisted
+  const [logoName, setLogoName] = useState<string>(saved.logoName && (saved.logoName === "none" || saved.logoName in logos) ? saved.logoName : "openclaw");
   const [action, setAction] = useState<ActionSpec | null>(null);
-  const [walkDistance, setWalkDistance] = useState(2); // body-widths per walk press
+  const [walkDistance, setWalkDistance] = useState(typeof saved.walkDistance === "number" ? saved.walkDistance : 2); // body-widths per walk press
   const [speech, setSpeech] = useState<SpeechSpec | null>(null);
-  const [speechText, setSpeechText] = useState("Hi, I'm Tally. Agent and avatar built by Peter.");
-  const [speechSide, setSpeechSide] = useState<SpeechSide>("auto");
+  const [speechText, setSpeechText] = useState(typeof saved.speechText === "string" ? saved.speechText : DEFAULT_SPEECH);
+  const [speechSide, setSpeechSide] = useState<SpeechSide>(saved.speechSide === "left" || saved.speechSide === "right" ? saved.speechSide : "auto");
   const [editMode, setEditMode] = useState(false);
-  const [draft, setDraft] = useState<Anatomy>(tally);
+  const [draft, setDraft] = useState<Anatomy>(avagent);
   const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState<TabId>(saved.tab && TABS.some((t) => t.id === saved.tab) ? saved.tab : "general");
+  const [swapped, setSwapped] = useState(saved.swapped ?? false); // false = avatar left / rail right
 
   // Anatomy edit mode: render the figure from a mutable `draft` (cloned from the selected preset) so
-  // edits show in real time while the left panel keeps driving actions/modes against it.
+  // edits show in real time while the rest of the rail keeps driving actions/modes against it.
   const enterEditMode = () => {
     setDraft(structuredClone(characters[characterName]));
     setEditMode(true);
@@ -446,6 +521,32 @@ function App() {
     setTimeout(() => setCopied(false), 1500);
   };
   const activeAnatomy = editMode ? draft : characters[characterName];
+
+  // Opening the Anatomy tab IS entering edit mode (the old "Edit anatomy" toggle). Edit mode then
+  // persists across tabs so actions/modes can be tested against the edited body.
+  useEffect(() => {
+    if (tab === "anatomy" && !editMode) enterEditMode();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  // Landing entrance: the avatar drops in shortly after mount.
+  useEffect(() => {
+    const t = setTimeout(() => fireAction({ name: "drop", distance: 6 }), 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist the curated settings subset whenever it changes.
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ characterName, themeName, scale, logoName, mode, view, groundShadow, showGround, swapped, walkDistance, speechText, speechSide, tab }),
+      );
+    } catch {
+      /* ignore quota / unavailable storage */
+    }
+  }, [characterName, themeName, scale, logoName, mode, view, groundShadow, showGround, swapped, walkDistance, speechText, speechSide, tab]);
 
   // Cmd/Ctrl+Shift+B toggles the bounding-box overlay (measureFigure vs live DOM).
   const [showBBox, setShowBBox] = useState(false);
@@ -473,7 +574,7 @@ function App() {
   const setOverrideValue = (key: string, value: number) =>
     setOverrides((o) => ({ ...o, [key]: value }));
 
-  // Fire an action by toggling null → spec. The Tally component dedupes against its last
+  // Fire an action by toggling null → spec. The Avagent component dedupes against its last
   // value, so the null bounce is needed to re-fire an identical action.
   const fireAction = (spec: ActionSpec) => {
     setAction(null);
@@ -486,301 +587,196 @@ function App() {
     setTimeout(() => setSpeech({ text: speechText, side: speechSide }), 50);
   };
 
-  return (
-    <div style={{ display: "flex", height: "100vh", alignItems: "stretch" }}>
-      {/* Left: controls column */}
-      <div
-        style={{
-          width: 380,
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
-          padding: 24,
-          borderRight: "1px solid #e2e2e2",
-          background: "#fafafa",
-          overflowY: "auto",
-          boxSizing: "border-box",
-        }}
-      >
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <label style={{ fontSize: 14, color: "#666" }}>
-            Character
-            <select
-              value={characterName}
-              onChange={(e) => changeCharacter(e.target.value)}
-              style={{ marginLeft: 8, padding: "4px 8px" }}
-            >
-              {Object.keys(characters).map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </label>
-          <label style={{ fontSize: 14, color: "#666" }}>
-            Theme
-            <select
-              value={themeName}
-              onChange={(e) => setThemeName(e.target.value)}
-              style={{ marginLeft: 8, padding: "4px 8px" }}
-            >
-              {Object.keys(themes).map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </label>
-          <label style={{ fontSize: 14, color: "#666" }}>
-            Scale
-            <select
-              value={scale}
-              onChange={(e) => setScale(Number(e.target.value))}
-              style={{ marginLeft: 8, padding: "4px 8px" }}
-            >
-              {scales.map((s) => (
-                <option key={s} value={s}>{s}x</option>
-              ))}
-            </select>
-          </label>
-          <label style={{ fontSize: 14, color: "#666", display: "flex", alignItems: "center", gap: 4 }}>
-            <input
-              type="checkbox"
-              checked={showAnchor}
-              onChange={(e) => setShowAnchor(e.target.checked)}
-            />
-            Anchor
-          </label>
-          <label style={{ fontSize: 14, color: "#666", display: "flex", alignItems: "center", gap: 4 }}>
-            <input
-              type="checkbox"
-              checked={groundShadow}
-              onChange={(e) => setGroundShadow(e.target.checked)}
-            />
-            Ground shadow
-          </label>
-          <label style={{ fontSize: 14, color: "#666", display: "flex", alignItems: "center", gap: 4 }}>
-            <input
-              type="checkbox"
-              checked={editMode}
-              onChange={(e) => (e.target.checked ? enterEditMode() : setEditMode(false))}
-            />
-            Edit anatomy
-          </label>
-          <label style={{ fontSize: 14, color: "#666" }}>
-            Logo
-            <select
-              value={logoName}
-              onChange={(e) => setLogoName(e.target.value)}
-              style={{ marginLeft: 8, padding: "4px 8px" }}
-            >
-              <option value="none">none</option>
-              {Object.keys(logos).map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </label>
-          <label style={{ fontSize: 14, color: "#666" }}>
-            Mode
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value as Mode)}
-              style={{ marginLeft: 8, padding: "4px 8px" }}
-            >
-              {modes.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </label>
-          <label style={{ fontSize: 14, color: "#666" }}>
-            View
-            <select
-              value={view}
-              onChange={(e) => setView(e.target.value as "full" | "head")}
-              style={{ marginLeft: 8, padding: "4px 8px" }}
-            >
-              {(["full", "head"] as const).map((v) => (
-                <option key={v} value={v}>{v}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-          <span style={{ fontSize: 14, color: "#666" }}>Debug overrides (engage any combination):</span>
-          {debugCapabilities.map(({ key, rest }) => {
-            const engaged = key in overrides;
-            const value = engaged ? overrides[key] : rest;
-            return (
-              <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#666" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 4, width: 130 }}>
-                  <input type="checkbox" checked={engaged} onChange={() => toggleOverride(key, rest)} />
-                  {key}
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={value}
-                  disabled={!engaged}
-                  onChange={(e) => setOverrideValue(key, Number(e.target.value))}
-                  style={{ width: 160 }}
-                />
-                <span style={{ fontVariantNumeric: "tabular-nums", minWidth: 36, opacity: engaged ? 1 : 0.4 }}>{value.toFixed(2)}</span>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 14, color: "#666", width: "100%" }}>Actions:</span>
-          {gestures.map((spec) => (
-            <button
-              key={spec.name}
-              type="button"
-              onClick={() => fireAction(spec)}
-              style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-            >
-              {spec.name}
-            </button>
+  // Reset every control to its first-load default and clear persisted state — including the transient
+  // debug state (overrides, anatomy draft, anchor) for a true clean slate. The persist effect then
+  // re-writes the defaults to storage, which loads back identically.
+  const resetAll = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    setCharacterName("Avagent");
+    setThemeName("default");
+    setScale(1);
+    setLogoName("openclaw");
+    setMode("hangout");
+    setView("full");
+    setGroundShadow(false);
+    setShowGround(true);
+    setSwapped(false);
+    setWalkDistance(2);
+    setSpeechText(DEFAULT_SPEECH);
+    setSpeechSide("auto");
+    setTab("general");
+    setOverrides({});
+    setShowAnchor(false);
+    setEditMode(false);
+    setDraft(avagent);
+    setAction(null);
+    setSpeech(null);
+  };
+
+  const stage = (
+    <div style={{ flex: 1, position: "relative", display: "flex", justifyContent: "center", alignItems: view === "head" ? "center" : "flex-start", paddingTop: view === "head" ? 0 : GROUND_Y, overflow: "visible" }}>
+      {/* Ground plane at the figure's anchor (feet/ground line) — full-body view, when enabled. */}
+      {view !== "head" && showGround && (
+        <div style={{ position: "absolute", left: 0, right: 0, top: GROUND_Y, bottom: 0, background: "var(--color-surface-2)", borderTop: "1px solid var(--color-line-2)", pointerEvents: "none" }} />
+      )}
+      <div ref={figureWrapRef} style={{ position: "relative" }}>
+        <Avagent
+          scale={scale}
+          mode={mode}
+          view={view}
+          anatomy={activeAnatomy}
+          theme={themes[themeName]}
+          showAnchor={showAnchor}
+          groundShadow={groundShadow}
+          chestImage={logos[logoName]}
+          debugOverrides={overrides}
+          action={action}
+          speech={speech}
+        />
+      </div>
+      {showBBox && <BBoxOverlay wrapRef={figureWrapRef} scale={scale} anatomy={activeAnatomy} />}
+    </div>
+  );
+
+  const rail = (
+    <div style={{ width: 380, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "visible" }}>
+      <div style={{ padding: 14, paddingBottom: 0 }}>
+        <div className="seg">
+          {TABS.map((t) => (
+            <button key={t.id} type="button" className="seg-tab" data-active={tab === t.id} onClick={() => setTab(t.id)}>{t.label}</button>
           ))}
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 14, color: "#666", width: "100%" }}>Walk:</span>
-          <button
-            type="button"
-            onClick={() => fireAction({ name: "walk", direction: "left", distance: walkDistance })}
-            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-          >
-            walk ←
-          </button>
-          <button
-            type="button"
-            onClick={() => fireAction({ name: "walk", direction: "right", distance: walkDistance })}
-            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-          >
-            walk →
-          </button>
-          <button
-            type="button"
-            onClick={() => fireAction({ name: "come", direction: "left", distance: walkDistance })}
-            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-          >
-            come ↦ (from left)
-          </button>
-          <button
-            type="button"
-            onClick={() => fireAction({ name: "come", direction: "right", distance: walkDistance })}
-            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-          >
-            come ↤ (from right)
-          </button>
-          <button
-            type="button"
-            onClick={() => fireAction({ name: "drop", distance: walkDistance })}
-            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-          >
-            drop ↓
-          </button>
-          <button
-            type="button"
-            onClick={() => fireAction({ name: "jump" })}
-            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-          >
-            jump ↑
-          </button>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#666", width: "100%" }}>
-            <span style={{ width: 60 }}>Distance</span>
-            <input
-              type="range"
-              min={0.5}
-              max={10}
-              step={0.5}
-              value={walkDistance}
-              onChange={(e) => setWalkDistance(Number(e.target.value))}
-              style={{ width: 160 }}
-            />
-            <span style={{ fontVariantNumeric: "tabular-nums", minWidth: 36 }}>{walkDistance.toFixed(1)}</span>
-          </label>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 14, color: "#666", width: "100%" }}>Say:</span>
-          <input
-            type="text"
-            value={speechText}
-            onChange={(e) => setSpeechText(e.target.value)}
-            placeholder="What should Tally say?"
-            style={{ flex: 1, minWidth: 160, padding: "6px 8px", fontSize: 14 }}
-          />
-          <select
-            value={speechSide}
-            onChange={(e) => setSpeechSide(e.target.value as SpeechSide)}
-            style={{ padding: "4px 8px" }}
-          >
-            <option value="auto">auto</option>
-            <option value="left">left</option>
-            <option value="right">right</option>
-          </select>
-          <button
-            type="button"
-            onClick={fireSpeech}
-            disabled={speechText.length === 0}
-            style={{ padding: "6px 14px", fontSize: 14, cursor: "pointer" }}
-          >
-            say
-          </button>
-        </div>
       </div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 18 }}>
+        {tab === "general" && (
+          <>
+            <Section title="Character & Look">
+              <SelectField label="Character" value={characterName} onChange={changeCharacter} options={Object.keys(characters).map((n) => ({ value: n, label: n }))} />
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <SelectField label="Theme" value={themeName} onChange={setThemeName} options={Object.keys(themes).map((n) => ({ value: n, label: n }))} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <SelectField label="Scale" value={String(scale)} onChange={(v) => setScale(Number(v))} options={scales.map((s) => ({ value: String(s), label: `${s}×` }))} />
+                </div>
+              </div>
+              <SelectField label="Logo" value={logoName} onChange={setLogoName} options={[{ value: "none", label: "none" }, ...Object.keys(logos).map((n) => ({ value: n, label: n }))]} />
+            </Section>
+            <Divider />
+            <Section title="Stage">
+              <SelectField label="Mode" value={mode} onChange={(v) => setMode(v as Mode)} options={modes.map((m) => ({ value: m, label: m }))} />
+              <Toggle label="Head only" checked={view === "head"} onChange={(on) => setView(on ? "head" : "full")} />
+              <Toggle label="Ground line" checked={showGround} onChange={setShowGround} disabled={view === "head"} />
+              <Toggle label="Ground shadow" checked={groundShadow} onChange={setGroundShadow} />
+              <Toggle label="Anchor" checked={showAnchor} onChange={setShowAnchor} />
+            </Section>
+          </>
+        )}
 
-      {/* Right: demo space */}
-      <div
-        style={{
-          flex: 1,
-          position: "relative",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "flex-start",
-          paddingTop: GROUND_Y,
-          overflow: "auto",
-        }}
-      >
-        {/* Ground plane at the figure's anchor (feet/ground line) — for eyeballing leg grounding. */}
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: GROUND_Y,
-            bottom: 0,
-            background: "#eef1f5",
-            borderTop: "2px solid #c7ccd6",
-            pointerEvents: "none",
-          }}
-        />
-        <div ref={figureWrapRef} style={{ position: "relative" }}>
-          <Tally
-            scale={scale}
-            mode={mode}
-            view={view}
-            anatomy={activeAnatomy}
-            theme={themes[themeName]}
-            showAnchor={showAnchor}
-            groundShadow={groundShadow}
-            chestImage={logos[logoName]}
-            debugOverrides={overrides}
-            action={action}
-            speech={speech}
-          />
-        </div>
-        {showBBox && <BBoxOverlay wrapRef={figureWrapRef} scale={scale} anatomy={activeAnatomy} />}
+        {tab === "actions" && (
+          <>
+            <SelectField label="Mode (test actions in context)" value={mode} onChange={(v) => setMode(v as Mode)} options={modes.map((m) => ({ value: m, label: m }))} />
+            <Section title="Gestures">
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {gestures.map((spec) => (
+                  <Btn key={spec.name} onClick={() => fireAction(spec)}>{spec.name}</Btn>
+                ))}
+              </div>
+            </Section>
+            <Divider />
+            <Section title="Movement">
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <Btn onClick={() => fireAction({ name: "walk", direction: "left", distance: walkDistance })}>walk ←</Btn>
+                <Btn onClick={() => fireAction({ name: "walk", direction: "right", distance: walkDistance })}>walk →</Btn>
+                <Btn title="come in from the left" onClick={() => fireAction({ name: "come", direction: "left", distance: walkDistance })}>come ↦</Btn>
+                <Btn title="come in from the right" onClick={() => fireAction({ name: "come", direction: "right", distance: walkDistance })}>come ↤</Btn>
+                <Btn onClick={() => fireAction({ name: "drop", distance: walkDistance })}>drop ↓</Btn>
+                <Btn onClick={() => fireAction({ name: "jump" })}>jump ↑</Btn>
+              </div>
+              <Slider label="Distance" min={0.5} max={10} step={0.5} value={walkDistance} onChange={setWalkDistance} format={(v) => v.toFixed(1)} />
+            </Section>
+            <Divider />
+            <Section title="Speech">
+              <textarea
+                className="tinput"
+                rows={2}
+                value={speechText}
+                onChange={(e) => setSpeechText(e.target.value)}
+                placeholder="What should Avagent say?"
+                style={{ resize: "vertical", fontFamily: "var(--font-body)" }}
+              />
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                <div style={{ width: 120 }}>
+                  <SelectField label="Side" value={speechSide} onChange={(v) => setSpeechSide(v as SpeechSide)} options={[{ value: "auto", label: "auto" }, { value: "left", label: "left" }, { value: "right", label: "right" }]} />
+                </div>
+                <Btn variant="accent" onClick={fireSpeech} disabled={speechText.length === 0} style={{ flex: 1 }}>Say</Btn>
+              </div>
+            </Section>
+          </>
+        )}
+
+        {tab === "debug" && (
+          <>
+            <span style={{ fontSize: 12, color: "var(--color-ink-muted)" }}>Override any capability — engage any combination; each pins at its rest value, then scrub.</span>
+            {Object.entries(debugGroups).map(([group, caps]) => (
+              <Section key={group} title={group}>
+                {caps.map(({ key, rest, sub }) => {
+                  const engaged = key in overrides;
+                  const value = engaged ? overrides[key] : rest;
+                  return (
+                    <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, opacity: engaged ? 1 : 0.55 }}>
+                      <button
+                        type="button"
+                        className="switch"
+                        role="switch"
+                        aria-checked={engaged}
+                        aria-label={key}
+                        data-on={engaged}
+                        onClick={() => toggleOverride(key, rest)}
+                        style={{ transform: "scale(0.82)", transformOrigin: "left center" }}
+                      />
+                      <span className="mono" style={{ fontSize: 12, width: 92, color: "var(--color-ink)" }}>{sub}</span>
+                      <input type="range" min={0} max={1} step={0.01} value={value} disabled={!engaged} onChange={(e) => setOverrideValue(key, Number(e.target.value))} style={{ flex: 1, minWidth: 0 }} />
+                      <span className="mono" style={{ fontSize: 12, width: 32, textAlign: "right", color: "var(--color-ink-muted)", fontVariantNumeric: "tabular-nums" }}>{value.toFixed(2)}</span>
+                    </div>
+                  );
+                })}
+              </Section>
+            ))}
+          </>
+        )}
+
+        {tab === "anatomy" && (
+          <AnatomyEditor anatomy={draft} onChange={editAnatomy} onExport={exportAnatomy} onReset={resetAnatomy} copied={copied} />
+        )}
       </div>
+    </div>
+  );
 
-      {/* Right: anatomy editor (only in edit mode) */}
-      {editMode && (
-        <AnatomyEditor
-          anatomy={draft}
-          onChange={editAnatomy}
-          onExport={exportAnatomy}
-          onReset={resetAnatomy}
-          copied={copied}
-        />
-      )}
+  return (
+    <div className="ambient-field" style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      {/* Top bar: wordmark · swap · Talagent funnel CTA */}
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 56, padding: "0 20px", flexShrink: 0, position: "relative", zIndex: 5 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Mark size={24} />
+          <span className="wordmark">avagent</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Btn variant="ghost" className="icon-btn" title="Reset all settings" aria-label="Reset all settings" onClick={resetAll}>↺</Btn>
+          <Btn variant="ghost" className="icon-btn" title="Swap sides" aria-label="Swap sides" onClick={() => setSwapped((s) => !s)}>⇄</Btn>
+          <a className="tbtn tbtn-ghost" href="https://talagent.net" target="_blank" rel="noreferrer" style={{ height: 36 }}>See live production demo ↗</a>
+        </div>
+      </header>
+
+      {/* Body: two columns, swappable */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: swapped ? "row-reverse" : "row", gap: 18, padding: "0 18px 18px", boxSizing: "border-box" }}>
+        {stage}
+        {rail}
+      </div>
     </div>
   );
 }

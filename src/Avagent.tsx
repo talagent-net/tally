@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { colors as defaultColors } from "./colors";
-import { tally } from "./anatomy";
+import { avagent } from "./anatomy";
 import type { Anatomy } from "./anatomy";
 import { AnimationProvider, useAnimationRenderer, useCapability, useCapabilityAnimation, useEngine } from "./animation/context";
 import { createBlinkAnimation } from "./animation/blink";
@@ -84,7 +84,7 @@ const FOOT_GROUND_CALIB = -4;
 
 // ─── Resolved rig ──────────────────────────────────────────────────────────────────────────────
 // Every anatomy-DERIVED value, computed once per anatomy preset. Render functions read these via
-// useRig() instead of module constants, so `<Tally anatomy={...} />` renders a differently-proportioned
+// useRig() instead of module constants, so `<Avagent anatomy={...} />` renders a differently-proportioned
 // robot. Motion-tuning magnitudes (stride°, slides, flail bounds, crouch°, …) stay module-level —
 // shared across all characters. A few absolute-px values (LEG_HIP_TUCK, ANTENNA_RIGHT) are still
 // literal pending the px→fraction pass; HEAD_TOP and BODY_BOTTOM are now derived (neck-anchor / grounding).
@@ -115,7 +115,7 @@ export function resolveRig(a: Anatomy) {
     BODY_PIVOT_Y: (a.body.height + OFFSET) * a.body.pivot.yFrac,
     BODY_ROTATION: a.body.restRotation,
     BODY_TURN_RATIO: a.body.turnDepthRatio,
-    BODY_BOTTOM: bodyBottom, // grounding ESTIMATE (close, for the first paint); runtime auto-grounding in TallyInner refines it to exact
+    BODY_BOTTOM: bodyBottom, // grounding ESTIMATE (close, for the first paint); runtime auto-grounding in AvagentInner refines it to exact
     CHEST_SIZE: a.body.chest.size, // absolute px — chest image stays the same size regardless of body width
     CHEST_TOP_RATIO: a.body.chest.topRatio,
     CHEST_TURN_MIN_RATIO: a.body.chest.turnMinRatio,
@@ -229,7 +229,7 @@ type Rig = ReturnType<typeof resolveRig>;
 const RigContext = createContext<Rig | null>(null);
 function useRig(): Rig {
   const rig = useContext(RigContext);
-  if (!rig) throw new Error("useRig must be used inside <Tally>");
+  if (!rig) throw new Error("useRig must be used inside <Avagent>");
   return rig;
 }
 
@@ -304,7 +304,7 @@ export const defaultTheme: ColorTheme = {
   fontFamily: DEFAULT_FONT_FAMILY,
 };
 
-export interface TallyProps {
+export interface AvagentProps {
   scale?: number;
   mode?: Mode;
   theme?: ColorTheme;
@@ -325,7 +325,7 @@ export interface TallyProps {
   // (signed: positive = rightward). The figure retains this displacement.
   onWalkComplete?: (deltaPx: number) => void;
   // A speech bubble shown next to the figure. This is an OVERLAY, independent of `action`: it
-  // rides on top of whatever Tally is doing (idle, tracking, mid-gesture) and times itself out
+  // rides on top of whatever Avagent is doing (idle, tracking, mid-gesture) and times itself out
   // after a read-proportional duration. Like `action`, it dedupes by value — to re-say identical
   // text, set this to null then back. Setting it to null is a no-op for an in-flight bubble (the
   // bubble dismisses on its own timer, not by clearing the prop) — UNLESS `speechHold` is set, in
@@ -352,7 +352,7 @@ export interface TallyProps {
   // Use to keep a readable bubble on small screens while the figure stays at scale=1.
   speechScale?: number;
   // The robot's anatomy (proportions). A character is purely this object; theme and behavior are
-  // orthogonal. Defaults to `tally`. Provide a different preset to render a differently-proportioned
+  // orthogonal. Defaults to `avagent`. Provide a different preset to render a differently-proportioned
   // robot. See ANATOMY_SPEC.md.
   anatomy?: Anatomy;
   // When the host renders a ground plane behind the figure, set this to clip the shadow to the pixels
@@ -375,8 +375,8 @@ const BASE = {
   height: 240,
 };
 
-export function Tally(props: TallyProps) {
-  const anatomy = props.anatomy ?? tally;
+export function Avagent(props: AvagentProps) {
+  const anatomy = props.anatomy ?? avagent;
   const rig = useMemo(() => resolveRig(anatomy), [anatomy]);
   // Remount the engine + figure whenever the anatomy object changes. Hot-swapping a running animation
   // engine's renderers onto a new rig in place proved unreliable — the engine kept applying the previous
@@ -392,13 +392,13 @@ export function Tally(props: TallyProps) {
   return (
     <RigContext.Provider value={rig}>
       <AnimationProvider key={remountKey.current}>
-        <TallyInner {...props} />
+        <AvagentInner {...props} />
       </AnimationProvider>
     </RigContext.Provider>
   );
 }
 
-function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, debugOverrides, action, onWalkComplete, speech, speechHold = false, onSpeechEnd, speechScale = 1, groundShadow = false, view = "full" }: TallyProps) {
+function AvagentInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnchor = false, chestImage, debugOverrides, action, onWalkComplete, speech, speechHold = false, onSpeechEnd, speechScale = 1, groundShadow = false, view = "full" }: AvagentProps) {
   const s = (v: number) => v * scale;
   const rig = useRig();
   const { BODY_W, ARM_FLAIL_REST_CAP, LEG_FLAIL_REST_CAP, HEAD_HALF_W, HEAD_CENTER_ABOVE_ANCHOR, SPEECH_GAP, SPEECH_MAX_WIDTH, GAIT_WALK_MS, GAIT_TRAVEL_PER_BW, JUMP_HEIGHT_BW, JUMP_FLAIL_SPEED, DROP_FLAIL_SPEED } = rig;
@@ -578,7 +578,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   // playback: it neither cancels the running action nor clears the queue, it just resets the
   // trigger so the same spec can re-fire.
   // Seed with the CURRENT prop value so a mount-time action isn't auto-played. This matters on a
-  // character switch: the whole figure remounts (see Tally) while `action` still holds the last spec —
+  // character switch: the whole figure remounts (see Avagent) while `action` still holds the last spec —
   // a null-seeded dedupe would replay it on the new character. Only genuine prop CHANGES fire.
   const lastActionKeyRef = useRef<string | null>(action ? JSON.stringify(action) : null);
   // The active action is wrapped with a per-activation `id` so EVERY activation is a fresh object,
@@ -772,7 +772,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
     const ground = (base: number) => {
       const root = rootRef.current;
       if (!root) return;
-      const feet = root.querySelectorAll<HTMLElement>("[data-tally-foot]");
+      const feet = root.querySelectorAll<HTMLElement>("[data-avagent-foot]");
       if (!feet.length) return;
       const anchorY = root.getBoundingClientRect().top; // 0-size root: its top edge IS the ground anchor
       let lowest = -Infinity;
@@ -995,7 +995,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   useCapabilityAnimation(ANTENNA_WIGGLE_KEY, antennaWiggleAnimation);
 
   // Speech overlay lifecycle — parallel to the action lifecycle above, but a separate channel: it
-  // doesn't touch any capability or the action slot, so the bubble coexists with whatever Tally is
+  // doesn't touch any capability or the action slot, so the bubble coexists with whatever Avagent is
   // doing. The active bubble carries a per-fire `id` (so re-saying identical text remounts a fresh
   // bubble with its entrance) and dedupes the prop by value, mirroring the action dedupe. A new
   // speech replaces a still-showing one immediately.
@@ -1017,7 +1017,7 @@ function TallyInner({ scale = 1, mode = "hangout", theme = defaultTheme, showAnc
   // Resolve "auto" to a concrete side from the figure's horizontal screen position. We measure the
   // locomotion wrapper, NOT the root: the wrapper is a 0-size box that carries the body.x walk
   // displacement, so its rect.left is the figure's CURRENT center on screen (the root stays pinned
-  // at the original anchor and wouldn't reflect where Tally walked to). If that's left of the
+  // at the original anchor and wouldn't reflect where Avagent walked to). If that's left of the
   // viewport center, open the bubble to the right (the roomier side), and vice-versa. Resolved
   // once, at show-time. Falls back to "left" if unmeasurable.
   const resolveSide = useCallback((side: SpeechSide): "left" | "right" => {
@@ -1678,7 +1678,7 @@ function SnoozeZs({ scale, theme }: { scale: number; theme: ColorTheme }) {
         pointerEvents: "none",
       }}
     >
-      <style>{`@keyframes tally-snooze-z {
+      <style>{`@keyframes avagent-snooze-z {
         0%   { opacity: 0; transform: translate(0px, 0px) scale(0.55); }
         20%  { opacity: 0.95; }
         70%  { opacity: 0.5; }
@@ -1698,7 +1698,7 @@ function SnoozeZs({ scale, theme }: { scale: number; theme: ColorTheme }) {
             color: theme.outline,
             // fill-mode "both" holds the 0% keyframe (tiny + transparent) during the staggered start
             // delay, so there's no full-size static Z before a Z's cycle begins.
-            animation: `tally-snooze-z ${SNOOZE_Z_PERIOD_MS}ms ease-out ${(i * SNOOZE_Z_PERIOD_MS) / SNOOZE_Z_COUNT}ms infinite both`,
+            animation: `avagent-snooze-z ${SNOOZE_Z_PERIOD_MS}ms ease-out ${(i * SNOOZE_Z_PERIOD_MS) / SNOOZE_Z_COUNT}ms infinite both`,
           }}
         >
           Z
@@ -2124,7 +2124,7 @@ function SignalWaves({ scale, theme }: { scale: number; theme: ColorTheme }) {
         pointerEvents: "none",
       }}
     >
-      <style>{`@keyframes tally-signal {
+      <style>{`@keyframes avagent-signal {
         0%   { width: ${min}px; height: ${min}px; opacity: 0; }
         25%  { opacity: 0.85; }
         100% { width: ${max}px; height: ${max}px; opacity: 0; }
@@ -2142,7 +2142,7 @@ function SignalWaves({ scale, theme }: { scale: number; theme: ColorTheme }) {
             borderRadius: "50%",
             boxSizing: "border-box",
             transform: "translate(-50%, -50%)",
-            animation: `tally-signal ${SIGNAL_PERIOD_MS}ms linear ${(i * SIGNAL_PERIOD_MS) / SIGNAL_RING_COUNT}ms infinite both`,
+            animation: `avagent-signal ${SIGNAL_PERIOD_MS}ms linear ${(i * SIGNAL_PERIOD_MS) / SIGNAL_RING_COUNT}ms infinite both`,
           }}
         />
       ))}
@@ -2286,8 +2286,8 @@ function LeftArm({ scale = 1, theme, showAnchor = false }: { scale: number; them
             backgroundColor: theme.outline,
             // Forearm: round top (elbow), slightly flatter bottom (hand) — see ARM_HAND_ROUNDNESS.
             borderRadius: `${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W * ARM_HAND_ROUNDNESS)}px ${s(ARM_LOWER_W * ARM_HAND_ROUNDNESS)}px`,
-            // Elbow pivot: center top
-            transformOrigin: `${s(ARM_UPPER_W / 2)}px ${s(ARM_LOWER_W / 2)}px`,
+            // Elbow pivot: forearm center, top (must match the inner fill + the RightArm mirror)
+            transformOrigin: `${s(ARM_LOWER_W / 2)}px ${s(ARM_LOWER_W / 2)}px`,
             transform: `rotate(${LEFT_LOWER_ANGLE}deg)`,
           }}
         />
@@ -2520,7 +2520,7 @@ function LeftLeg({ scale = 1, theme, showAnchor = false }: { scale: number; them
         }}
       >
         <div
-          data-tally-foot=""
+          data-avagent-foot=""
           style={{
             position: "absolute",
             // Anchored about the foot's OWN geometric center (transformOrigin = box center): the foot is
@@ -2611,7 +2611,7 @@ function RightLeg({ scale = 1, theme, showAnchor = false }: { scale: number; the
         }}
       >
         <div
-          data-tally-foot=""
+          data-avagent-foot=""
           style={{
             position: "absolute",
             // Symmetric capsule centered about its own geometric center (see LeftLeg) → no direction.

@@ -1,8 +1,8 @@
-# Tally — Mascot Component Spec
+# Avagent — Mascot Component Spec
 
 ## Overview
 
-Tally is a React component (`<Tally />`) that renders an animated mascot built from simple rounded div boxes. No complex SVGs — all anatomy is CSS-native, animated with transforms.
+Avagent is a React component (`<Avagent />`) that renders an animated mascot built from simple rounded div boxes. No complex SVGs — all anatomy is CSS-native, animated with transforms.
 
 ## Props
 
@@ -53,7 +53,7 @@ Body (L1 — root, egg-shaped, tapers at bottom, floats above shadow)
 Shadow (sibling of body, anchored at ground plane)
 ```
 
-No legs — Tally floats above a soft elliptical drop shadow. The body is egg/capsule-shaped, wider at the shoulders and tapering to a rounded bottom. Arms are short, pill-shaped nubs.
+No legs — Avagent floats above a soft elliptical drop shadow. The body is egg/capsule-shaped, wider at the shoulders and tapering to a rounded bottom. Arms are short, pill-shaped nubs.
 
 ### Multi-shape body parts
 
@@ -95,11 +95,11 @@ Each animation mode defines what every body part does — described as transform
 
 ## Mode transitions
 
-When the `mode` prop changes, Tally interpolates smoothly from the current pose to the new mode's pose. This requires tracking the previous mode's state to blend from.
+When the `mode` prop changes, Avagent interpolates smoothly from the current pose to the new mode's pose. This requires tracking the previous mode's state to blend from.
 
 ## Anchor point
 
-Each mode defines its own anchor point — the fixed reference position for the component within its parent. Default is feet/ground plane (e.g. `jump` anchors at the ground so the shadow stays fixed while the body rises). The consumer positions Tally via its parent div; `scale` is always explicitly set by the consumer.
+Each mode defines its own anchor point — the fixed reference position for the component within its parent. Default is feet/ground plane (e.g. `jump` anchors at the ground so the shadow stays fixed while the body rises). The consumer positions Avagent via its parent div; `scale` is always explicitly set by the consumer.
 
 ## Future considerations
 

@@ -3,23 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tally Dev</title>
+    <title>avagent — playground</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- The consumer app is expected to load IBM Plex Sans; the dev page stands in for it so we can
-         see the bubble in the real font. Tally itself bundles no font. -->
+    <!-- Display (Oxanium), body (IBM Plex Sans), mono (JetBrains Mono) — the Talagent type system.
+         The consumer app supplies its own body font; the playground stands in so the bubble renders
+         in the real font. Avagent itself bundles no font. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Oxanium:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <style>
-      body {
-        margin: 0;
-        min-height: 100vh;
-        background: #ffffff;
-        font-family: "IBM Plex Sans", system-ui, sans-serif;
-        color: #333;
-      }
       #root {
         width: 100vw;
         min-height: 100vh;

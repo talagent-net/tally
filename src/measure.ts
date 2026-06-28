@@ -1,10 +1,10 @@
-import { resolveRig } from "./Tally";
-import { tally } from "./anatomy";
+import { resolveRig } from "./Avagent";
+import { avagent } from "./anatomy";
 import type { Anatomy } from "./anatomy";
 
 // measureFigure — the figure's REST-POSE bounding box, computed analytically (no DOM).
 //
-// Why analytical: the <Tally> root is a 0×0 `overflow:visible` anchor div, so there is nothing
+// Why analytical: the <Avagent> root is a 0×0 `overflow:visible` anchor div, so there is nothing
 // to measure with getBoundingClientRect — every part is an absolutely-positioned, individually
 // rotated rectangle hanging off that anchor. This module reproduces the EXACT CSS transform chain
 // the component applies to each part (position + transformOrigin + rotate, composed through the
@@ -77,7 +77,7 @@ function addRect(b: Bounds, m: Mat, w: number, h: number): void {
   }
 }
 
-const GROUND_DROP = 9; // shadow center sits this many px below the anchor (matches Shadow in Tally.tsx)
+const GROUND_DROP = 9; // shadow center sits this many px below the anchor (matches Shadow in Avagent.tsx)
 
 export interface FigureBox {
   /** Figure silhouette bounding box at the requested scale (excludes ground shadow + ears). */
@@ -88,12 +88,12 @@ export interface FigureBox {
 }
 
 /**
- * Measure the rest-pose bounding box of a Tally figure for a given anatomy, without rendering it.
+ * Measure the rest-pose bounding box of a Avagent figure for a given anatomy, without rendering it.
  * Returns the figure silhouette `{ width, height }` plus a shadow-inclusive `withShadow` box, all at
  * `scale` (default 1). Use it to size a layout slot per character instead of hand-tuning box literals.
  * Analytical and deterministic — see the module header for exactly what it does and doesn't bound.
  */
-export function measureFigure(anatomy: Anatomy = tally, scale = 1): FigureBox {
+export function measureFigure(anatomy: Anatomy = avagent, scale = 1): FigureBox {
   const r = resolveRig(anatomy);
 
   const W_b = r.BODY_W + r.BODY_OFFSET;

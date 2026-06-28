@@ -32,7 +32,7 @@ const WALK_ACCEL_MS = 150;
 const STEPS_PER_BODYWIDTH = 2;
 // HORIZONTAL TRAVEL — body-widths of on-screen movement per body-width of walk. Decoupled from
 // the gait cycle: it scales ONLY how far body.x slides, leaving duration, step count, and the
-// bounce/swing cadence untouched. Raise it to cover more ground in the same walk (Tally reads as
+// bounce/swing cadence untouched. Raise it to cover more ground in the same walk (Avagent reads as
 // faster across the screen; the legs keep cycling at the same speed, so the feet glide a little).
 // 1.0 = feet roughly track the ground. Now per-character (gait.travelPerBodyWidth); this is the default.
 const WALK_TRAVEL_PER_BODYWIDTH = 2.2;

@@ -1,13 +1,13 @@
-# Tally — Parametric Anatomy Spec (Design)
+# Avagent — Parametric Anatomy Spec (Design)
 
-> **Status:** design, pre-implementation. This document is the output of the "abstract Tally's
+> **Status:** design, pre-implementation. This document is the output of the "abstract Avagent's
 > anatomy into data" design pass. No code has changed yet. The default anatomy preset must
-> reproduce today's Tally; this doc defines the parameter set that makes that possible and makes
+> reproduce today's Avagent; this doc defines the parameter set that makes that possible and makes
 > other robots expressible by editing numbers alone.
 
 ## 1. Vision & boundaries
 
-Tally is a robot built from rounded `div` boxes — fundamentally *a set of numbers* (sizes, offsets,
+Avagent is a robot built from rounded `div` boxes — fundamentally *a set of numbers* (sizes, offsets,
 radii, angles). Today those numbers are hard-coded module constants. The goal is to lift them into a
 declarative **anatomy spec** so that a different robot — thinner, taller, longer-legged, smaller-headed,
 less rounded, eyes further apart — is *just a different anatomy object*, with no change to the rendering
@@ -21,7 +21,7 @@ Three **independent** axes:
 | **Theme** | colorway | No — orthogonal; any character in any colorway |
 | **Behavior** | capability set + animations/actions + motion-tuning | No — shared engine (motion-tuning overridable later) |
 
-A "character" is **only** an anatomy object. Tally is the default preset.
+A "character" is **only** an anatomy object. Avagent is the default preset.
 
 ## 2. The model
 
@@ -76,7 +76,7 @@ down, *behind* otherwise) are **fixed machinery** — identical for every charac
 renderer, never a per-character knob.
 
 ### 2.7 Extraction discipline (the oracle)
-The default preset must render **pixel-identical** to today's Tally and run every existing gesture
+The default preset must render **pixel-identical** to today's Avagent and run every existing gesture
 unchanged. Any pixel diff during extraction is therefore a **bug signal**. Deliberate visual changes are
 done as separate, labeled passes — not folded into the mechanical extraction. The **only** intended
 deviation in this pass:
@@ -97,7 +97,7 @@ No global light direction — shading is head-only (§4 Head).
 ## 4. Per-part anatomy
 
 > Angles in degrees (portable). `*Ratio` = fraction of the named reference. Values are today's
-> (default preset = Tally). "→ fraction" marks a current absolute-px value to be converted (§5).
+> (default preset = Avagent). "→ fraction" marks a current absolute-px value to be converted (§5).
 
 ### Body (root)
 | Group | Knobs |
@@ -201,7 +201,7 @@ The complete list of current absolute-px values that must become relative for re
 Everything else is already either a fraction, a derived expression, or an angle.
 
 ## 6. Shared engine (for reference — not per-character)
-- **Capabilities** (rig DOF, normalized, declared with rest values in `TallyInner`): `eyes.blink`,
+- **Capabilities** (rig DOF, normalized, declared with rest values in `AvagentInner`): `eyes.blink`,
   `eyes.spin`, `head.bob/turn/tilt`, `arms.{left,right}.{raise,wave,flail}`, `arms.stride`,
   `antenna.wiggle`, `body.turn`, `upperbody.turn`, `body.{x,y,bounce,lean,crouch}`, `legs.stride`,
   `legs.{left,right}.flail`.
@@ -214,12 +214,12 @@ These are universal. They consume the resolved rig + motion-tuning; they do not 
 - **The model is already proven by the existing code:** arms use rest+delta composition, eyes/ears/antenna
   use fractional anchors and read the parent head's foreshortening — i.e. real gestures are *already*
   authored the way this model requires.
-- **Oracle:** default preset renders pixel-identical Tally (modulo the documented `/8` drop).
+- **Oracle:** default preset renders pixel-identical Avagent (modulo the documented `/8` drop).
 - **Portability test:** a deliberately-distorted preset (long legs, small head, less rounding, wide eyes)
   must render coherently and run every gesture without per-gesture edits.
 
 ## 8. Next steps (implementation — step 3+)
-1. Define the `Anatomy` TypeScript types (per §3–§4), with a `tally` default preset = today's numbers.
+1. Define the `Anatomy` TypeScript types (per §3–§4), with a `avagent` default preset = today's numbers.
 2. Build the **resolver**: `Anatomy + scale → ResolvedRig` (pixels, derived pivots, grounding-computed
    body elevation).
 3. Convert the px values in §5 to anatomy-relative fractions (default values chosen to reproduce today).

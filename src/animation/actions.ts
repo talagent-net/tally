@@ -37,14 +37,14 @@ export type Action = {
   };
   // Present only for `drop`: the vertical free-fall. The component drives body.y from `offsetBodyWidths`
   // above the anchor down to it over `fallMs` with a gravity profile, then the landing crouch (in
-  // `animations`) absorbs the impact. No net displacement — Tally lands on the anchor.
+  // `animations`) absorbs the impact. No net displacement — Avagent lands on the anchor.
   descent?: {
     offsetBodyWidths: number;
     fallMs: number;
   };
   // Present only for `jump`: the vertical hop. The component drives body.y as a symmetric parabola
   // (0 → -peak apex → 0) over `airMs`, starting `airStartMs` into the action (after the anticipation
-  // crouch). No net displacement — Tally returns to the anchor.
+  // crouch). No net displacement — Avagent returns to the anchor.
   ascent?: {
     peakBodyWidths: number;
     airStartMs: number;
@@ -63,8 +63,8 @@ export type Action = {
 // parameters (walk needs a direction and a distance). Discriminated on `name`.
 //
 // walk vs come (inverse): walk leaves the anchor and travels `distance` away (net displacement);
-// come is an ENTRANCE — Tally starts `distance` off the anchor on the given side and walks IN to
-// the anchor, ending exactly there (no net displacement). `direction` for come is the side Tally
+// come is an ENTRANCE — Avagent starts `distance` off the anchor on the given side and walks IN to
+// the anchor, ending exactly there (no net displacement). `direction` for come is the side Avagent
 // comes FROM; distance is in the same body-widths as walk.
 export type ActionSpec = (
   | { name: "disagree" }
@@ -91,7 +91,7 @@ export type ActionSpec = (
 export type ActionName = ActionSpec["name"];
 
 // walk/come commit a net body.x move, and drop/jump drive a body.y excursion — both settled ONLY in
-// the completion timer (see the action lifecycle in Tally). Preempting one mid-flight would strand
+// the completion timer (see the action lifecycle in Avagent). Preempting one mid-flight would strand
 // walkStateRef/verticalRef and snap the figure, so `interrupt` is honored only against pure gestures
 // (every other action touches solely reset-to-rest capabilities and tears down cleanly).
 const NET_EFFECT_ACTIONS = new Set<ActionName>(["walk", "come", "drop", "jump"]);
@@ -198,7 +198,7 @@ export function createAction(spec: ActionSpec, behavior: ActionBehavior = {}): A
       };
     }
     case "come": {
-      // Inverse of walk: Tally enters from `distance` off the anchor on `direction`'s side and
+      // Inverse of walk: Avagent enters from `distance` off the anchor on `direction`'s side and
       // walks IN to the anchor. The gait travels TOWARD the anchor — i.e. the opposite direction
       // — so reuse createWalk with the flipped direction; `arrive` makes body.x slide offset→0.
       const gaitDirection: WalkDirection = spec.direction === "left" ? "right" : "left";

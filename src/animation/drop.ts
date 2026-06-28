@@ -1,6 +1,6 @@
 import type { AnimationFn } from "./engine";
 
-// Drop — the vertical mirror of `come`: Tally free-falls from `distance` above the anchor and
+// Drop — the vertical mirror of `come`: Avagent free-falls from `distance` above the anchor and
 // lands exactly on it. Two phases:
 //   [0, fallMs)               FALL: body.y descends with a gravity profile (accelerating, hard
 //                             stop), while all four limbs flail frantically and independently.
