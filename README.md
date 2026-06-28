@@ -1,4 +1,4 @@
-<div align="center">
+<div align="left">
 
 # avagent
 
@@ -120,7 +120,7 @@ Fire one-shot actions with the `action` prop. They override `mode` for their dur
 
 ### Gestures
 
-<p align="center">
+<p align="left">
   <img src="assets/avagent-greet.gif" alt="avagent greeting" width="105" />
   <img src="assets/avagent-disagree.gif" alt="avagent disagreeing" width="105" />
   <img src="assets/avagent-shrug.gif" alt="avagent shrugging" width="105" />
@@ -134,7 +134,7 @@ The set: `agree`, `disagree`, `agreeShort`, `disagreeShort`, `greet`, `shrug`, `
 
 ### Movement
 
-<p align="center">
+<p align="left">
   <img src="assets/avagent-jump.gif" alt="avagent jumping" width="105" />
 </p>
 
@@ -148,7 +148,7 @@ The set: `walk`, `come`, `drop`, `jump`. Distance is measured in body-widths.
 
 A speech bubble rides on top of whatever the avatar is doing and times itself out. Show one with the `speech` prop.
 
-<p align="center">
+<p align="left">
   <img src="assets/avagent-speech.gif" alt="avagent showing a speech bubble" width="188" />
 </p>
 
