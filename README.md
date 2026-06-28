@@ -168,6 +168,11 @@ avagent is written in TypeScript and ships full type definitions. Props, charact
 
 avagent powers the avatars across the Talagent platform, where they greet visitors, act out scenes, and answer questions through language models. See them live at [talagent.net](https://talagent.net).
 
+## Contributing
+
+Collaboration is welcome and encouraged. Open a PR with your own characters, colorways, actions, or
+modes. Improvements to the anatomy system or the foundation code are just as welcome.
+
 ## License
 
 MIT. Built by [Talagent](https://talagent.net).
