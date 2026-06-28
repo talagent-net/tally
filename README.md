@@ -14,13 +14,13 @@
 
 </div>
 
-Give your agent a face. avagent renders a friendly robot avatar built entirely from HTML and CSS, with no SVG, canvas, or image files. It blinks, tracks the cursor, gestures, walks, and talks, so a chat bot, a copilot, or any agent UI can show a character with real personality.
+Give your agent a face. avagent renders a friendly robot avatar built entirely from HTML and CSS, with no SVG, canvas, or image files. It blinks, tracks the cursor, gestures, walks, and talks, so a chat bot, a copilot, or any agent UI can show a character with real personality. And every part of it is yours to shape. You build the character and the color palette from plain data, with no rendering code to fork and no art to commission.
 
 ## Why avagent
 
+- **Fully customizable.** Every proportion and every color is plain data you control. Build any character and any palette from scratch, with no rendering code to fork and no art to commission.
 - **Pure HTML and CSS.** No SVG, canvas, or WebGL. The avatar scales crisply at any size and themes with plain color values.
-- **A real cast.** Six characters ship out of the box, and a character is just a small object of proportions, so you can design your own without touching rendering code.
-- **Themeable.** Eight built-in colorways, or pass any colors you like.
+- **Batteries included.** Six characters and eight colorways ship in the box for a head start. They are optional. Bring your own anytime.
 - **It moves.** Gestures, walking, jumping, cursor tracking, and timed speech bubbles.
 - **One component.** Drop in `<Avagent />` and bring your own everything else.
 - **Typed and documented.** Every prop carries inline documentation in your editor.
@@ -45,35 +45,74 @@ export function Demo() {
 
 With no props, `<Avagent />` renders the default character idling. Every prop is optional.
 
-## Characters
+## Build your own
 
-Six presets ship in the `characters` map. Pass any of them to the `anatomy` prop.
+A character is three independent things, and you control all of them with plain data: its **anatomy** (proportions), its **colorway** (theme), and its **behavior** (mode, actions, and speech). There is no rendering code to fork and no art to commission.
+
+### A custom character
+
+Anatomy is a single object of numbers. Spread the base and change whatever you want: a taller head, bigger eyes, a longer antenna, or no legs at all.
+
+```tsx
+import { Avagent, avagent, type Anatomy } from "@talagent-net/avagent";
+
+const myBot: Anatomy = {
+  ...avagent,
+  head: { ...avagent.head, width: 150, roundness: 40 },
+  eye: { ...avagent.eye, width: 28, height: 28 },
+  antenna: { ...avagent.antenna, height: 52 },
+};
+
+export function MyBot() {
+  return <Avagent anatomy={myBot} />;
+}
+```
+
+### A custom palette
+
+A colorway is a handful of color values. Pass any tones you like.
+
+```tsx
+import { Avagent, type ColorTheme } from "@talagent-net/avagent";
+
+const violet: ColorTheme = {
+  primary: "#7c5cff",
+  primaryDark: "#4b32b3",
+  primaryMidDark: "#9a7dff",
+  primaryMid: "#b4a0ff",
+  outline: "#1a1730",
+};
+
+export function Violet() {
+  return <Avagent theme={violet} />;
+}
+```
+
+The `anatomy` and `theme` props accept any object you build. Mix a custom body with a built-in colorway, or the reverse. Nothing is locked.
+
+## Built-in presets
+
+If you want a head start, avagent ships a small cast and a set of colorways. They are optional, and the `anatomy` and `theme` props still accept anything.
+
+### Characters
+
+Six presets in the `characters` map: `Avagent`, `Stilt`, `Scratch`, `Float`, `Glitch`, `Loop`.
 
 ```tsx
 import { Avagent, characters } from "@talagent-net/avagent";
 
-export function Cast() {
-  return <Avagent anatomy={characters.Loop} />;
-}
+<Avagent anatomy={characters.Loop} />;
 ```
 
-The roster: `Avagent`, `Stilt`, `Scratch`, `Float`, `Glitch`, `Loop`.
+### Colorways
 
-A character is purely proportions (a plain `Anatomy` object). Copy a preset, change the numbers, and you have a new character. The presets are optional. The `anatomy` prop accepts any object you build.
-
-## Colorways
-
-Eight colorways ship in the `themes` map. Pass any to the `theme` prop, or supply your own tones.
+Eight presets in the `themes` map: `slate`, `steel`, `tide`, `forest`, `honey`, `ember`, `coral`, `berry`.
 
 ```tsx
 import { Avagent, themes } from "@talagent-net/avagent";
 
-export function Themed() {
-  return <Avagent theme={themes.forest} />;
-}
+<Avagent theme={themes.forest} />;
 ```
-
-The set: `slate`, `steel`, `tide`, `forest`, `honey`, `ember`, `coral`, `berry`.
 
 ## Actions and speech
 
@@ -90,16 +129,6 @@ Gestures include `agree`, `disagree`, `greet`, `shrug`, `hangHead`, and short va
 ## Modes
 
 The `mode` prop sets the ambient behavior the avatar settles into between actions: `hangout`, `track` (follows the cursor), `connecting`, `frozen` (a still portrait), `snooze`, and `debug`.
-
-## Three independent axes
-
-avagent splits a character into three orthogonal parts, so you can mix them freely.
-
-1. **Anatomy** (`anatomy`) decides which character it is. This is proportions.
-2. **Colorway** (`theme`) decides how it looks.
-3. **Behavior** (`mode`, `action`, `speech`) decides what it does.
-
-Any character works with any colorway and any behavior.
 
 ## TypeScript
 
