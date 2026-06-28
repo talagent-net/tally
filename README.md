@@ -118,6 +118,13 @@ import { Avagent, themes } from "@talagent-net/avagent";
 
 Fire one-shot actions with the `action` prop, and show a speech bubble with `speech`. Both are independent of `mode`.
 
+<p align="center">
+  <img src="assets/avagent-greet.gif" alt="avagent greeting" height="240" />
+  <img src="assets/avagent-disagree.gif" alt="avagent disagreeing" height="240" />
+  <img src="assets/avagent-shrug.gif" alt="avagent shrugging" height="240" />
+  <img src="assets/avagent-jump.gif" alt="avagent jumping" height="240" />
+</p>
+
 ```tsx
 <Avagent action={{ name: "agree" }} />
 <Avagent action={{ name: "walk", direction: "right", distance: 2 }} />
