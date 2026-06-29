@@ -6,7 +6,7 @@ import type { ColorTheme, Mode, ActionSpec, SpeechSpec, SpeechSide, Anatomy } fr
 import openclaw from "./openclaw.png";
 import claudecode from "./claudecode.png";
 import codex from "./codex.png";
-import avagentMark from "./avagent-mark.png";
+import avagentMark from "./avagent-mark.webp";
 import "./styles.css";
 
 // Single logo PNG, rendered light-tinted on top of the solid chest panel.
@@ -1006,7 +1006,7 @@ function App() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src={avagentMark} alt="avagent" height={28} style={{ display: "block" }} />
+          <img src={avagentMark} alt="avagent" width={32} height={32} style={{ display: "block" }} />
           <span className="wordmark">avagent</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
