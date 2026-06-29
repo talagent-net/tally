@@ -1006,7 +1006,25 @@ function App() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src={avagentMark} alt="avagent" width={32} height={32} style={{ display: "block" }} />
+          <span
+            role="img"
+            aria-label="avagent"
+            style={{
+              display: "block",
+              width: 32,
+              height: 32,
+              flexShrink: 0,
+              background: "var(--color-brand)",
+              WebkitMaskImage: `url(${avagentMark})`,
+              maskImage: `url(${avagentMark})`,
+              WebkitMaskRepeat: "no-repeat",
+              maskRepeat: "no-repeat",
+              WebkitMaskPosition: "center",
+              maskPosition: "center",
+              WebkitMaskSize: "contain",
+              maskSize: "contain",
+            }}
+          />
           <span className="wordmark">avagent</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
