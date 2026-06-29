@@ -500,7 +500,7 @@ function App() {
   const [view, setView] = useState<"full" | "head">(saved.view === "head" ? "head" : "full");
   const [overrides, setOverrides] = useState<Record<string, number>>({}); // debug — not persisted
   const [logoName, setLogoName] = useState<string>(
-    saved.logoName && (saved.logoName === "none" || saved.logoName in logos) ? saved.logoName : "openclaw",
+    saved.logoName && (saved.logoName === "none" || saved.logoName in logos) ? saved.logoName : "none",
   );
   const [action, setAction] = useState<ActionSpec | null>(null);
   const [walkDistance, setWalkDistance] = useState(typeof saved.walkDistance === "number" ? saved.walkDistance : 2); // body-widths per walk press
@@ -655,7 +655,7 @@ function App() {
     setThemeDraft({ ...themes["steel"] });
     setThemeCopied(false);
     setScale(1);
-    setLogoName("openclaw");
+    setLogoName("none");
     setMode("hangout");
     setView("full");
     setGroundShadow(false);
@@ -1025,7 +1025,7 @@ function App() {
               maskSize: "contain",
               // The asset's mass sits ~8px below its geometric center (antenna pulls the
               // bbox up while the head is low), so nudge up to optically center the head.
-              transform: "translateY(-2px)",
+              transform: "translateY(-3px)",
             }}
           />
           <span className="wordmark">avagent</span>
