@@ -1023,6 +1023,9 @@ function App() {
               maskPosition: "center",
               WebkitMaskSize: "contain",
               maskSize: "contain",
+              // The asset's mass sits ~8px below its geometric center (antenna pulls the
+              // bbox up while the head is low), so nudge up to optically center the head.
+              transform: "translateY(-2px)",
             }}
           />
           <span className="wordmark">avagent</span>

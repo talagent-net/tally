@@ -1,6 +1,6 @@
 {
   "name": "@talagent-net/avagent",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "description": "Expressive, animated avatar characters for your agents in chat or any UI. A React component rendered in plain HTML and CSS.",
   "keywords": [
     "avatar",
